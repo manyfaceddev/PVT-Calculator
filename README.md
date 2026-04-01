@@ -14,6 +14,25 @@ streamlit run app.py
 
 ---
 
+## Deploy to Streamlit Community Cloud (free)
+
+1. Push this repo to GitHub (public or private)
+2. Go to https://share.streamlit.io
+3. Click **New app**
+4. Select your repo, branch: `main`, main file: `app.py`
+5. Click **Deploy** — your app will be live in ~2 minutes
+
+No extra configuration needed — `requirements.txt`, `.python-version`, and `.streamlit/config.toml` are picked up automatically.
+
+### Local network access (same WiFi)
+
+```bash
+./launch.sh
+# Prints the phone URL, e.g. http://192.168.x.x:8501
+```
+
+---
+
 ### What it does
 
 Given separator GOR, pressure, temperature, and gas Z-factor, the calculator tells you:
