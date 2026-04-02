@@ -295,7 +295,7 @@ DIAGRAMS = {1: DIAGRAM_1, 2: DIAGRAM_2, 3: DIAGRAM_3}
 # ---------------------------------------------------------------------------
 SS_DEFAULTS: dict = {
     "units": "field", "_units_prev": "field",
-    "n_stages": 2, "v_cell": 300.0, "oil_fraction": 0.70, "bo_sep": 1.00,
+    "n_stages": 1, "v_cell": 300.0, "oil_fraction": 0.70, "bo_sep": 1.00,
     "r_sep_1": 850.0, "p_sep_1": 800.0, "t_sep_1": 140.0, "z_sep_1": 0.865,
     "r_sep_2":  50.0, "p_sep_2":  65.0, "t_sep_2": 100.0, "z_sep_2": 0.977,
     "r_sep_3":  20.0, "p_sep_3":  35.0, "t_sep_3":  75.0, "z_sep_3": 0.991,
@@ -508,27 +508,27 @@ st.markdown("""
 # ── HERO — Charge Summary ────────────────────────────────────────────────────
 gas_rows_html = ""
 for sr in res.stage_results:
-    pct = f"({sr.pct_of_total:.0f}% of GOR)" if n_stages > 1 else ""
-    gas_rows_html += f"""
-    <div class="charge-row">
-        <div>
-            <span class="charge-val">{sr.V_gas_std_cc:,.1f}</span>
-            <span class="charge-unit">cc gas</span>
-            <div class="charge-label">Stage {sr.stage_num} ({sr.label}) · {sr.V_gas_std_unit:.4f} {gas_unit} · std cond. {pct}</div>
-        </div>
-    </div>"""
+    pct = f" ({sr.pct_of_total:.0f}% of GOR)" if n_stages > 1 else ""
+    gas_rows_html += (
+        f'<div class="charge-row"><div>'
+        f'<span class="charge-val">{sr.V_gas_std_cc:,.1f}</span>'
+        f'<span class="charge-unit">cc gas</span>'
+        f'<div class="charge-label">Stage {sr.stage_num} ({sr.label})'
+        f' · {sr.V_gas_std_unit:.4f} {gas_unit} · std cond.{pct}</div>'
+        f'</div></div>'
+    )
 
 total_gas_row = ""
 if n_stages > 1:
-    total_gas_row = f"""
-    <hr class="hero-divider">
-    <div class="charge-row">
-        <div>
-            <span class="charge-val">{res.total_V_gas_std_cc:,.1f}</span>
-            <span class="charge-unit">cc total gas</span>
-            <div class="charge-label">{res.total_V_gas_std_unit:.4f} {gas_unit} · all stages combined · std cond.</div>
-        </div>
-    </div>"""
+    total_gas_row = (
+        f'<hr class="hero-divider">'
+        f'<div class="charge-row"><div>'
+        f'<span class="charge-val">{res.total_V_gas_std_cc:,.1f}</span>'
+        f'<span class="charge-unit">cc total gas</span>'
+        f'<div class="charge-label">{res.total_V_gas_std_unit:.4f} {gas_unit}'
+        f' · all stages combined · std cond.</div>'
+        f'</div></div>'
+    )
 
 gor_check_str = f"{res.GOR_check:.1f} {gor_unit} ✓" if gor_err_pct < 0.1 else f"{res.GOR_check:.1f} {gor_unit} ⚠"
 
