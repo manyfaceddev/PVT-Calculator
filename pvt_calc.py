@@ -146,39 +146,49 @@ class SeparatorStage:
 @dataclass
 class StageResult:
     """Per-stage recombination output."""
-    stage_num:       int
-    label:           str
-    R_input:         float   # GOR in input units
-    R_cc:            float   # GOR in cc/cc
-    V_gas_std_cc:    float   # cc @ standard conditions
-    V_gas_std_unit:  float   # scf (field) or sm³ (SI)
-    V_gas_sep:       float   # cc @ this stage's P and T
-    P_psia:          float   # internal pressure
-    T_R:             float   # internal temperature (Rankine)
-    T_F:             float   # temperature in °F (display)
-    Z:               float
-    pct_of_total:    float   # % of total GOR contributed by this stage
+    stage_num:          int
+    label:              str
+    R_input:            float   # GOR in input units
+    R_cc:               float   # GOR in cc/cc
+    V_gas_std_cc:       float   # cc @ standard conditions
+    V_gas_std_unit:     float   # scf (field) or sm³ (SI)
+    V_gas_sep:          float   # cc @ this stage's separator P and T
+    V_gas_recomb_cc:    float   # cc @ recombination P and T
+    P_psia:             float   # internal separator pressure
+    T_R:                float   # internal separator temperature (Rankine)
+    T_F:                float   # separator temperature in °F (display)
+    Z:                  float
+    pct_of_total:       float   # % of total GOR contributed by this stage
 
 
 @dataclass
 class MultiStageResults:
     """Output from a multi-stage recombination calculation."""
-    V_oil_sep:             float         # cc — separator oil from final stage
+    V_live:                float         # cc — target live fluid volume (input)
+    V_oil_sep:             float         # cc — separator oil to charge
     V_oil_STO:             float         # cc — stock-tank oil equivalent
     stage_results:         list          # list[StageResult]
     total_V_gas_std_cc:    float         # cc @ std — sum over all stages
     total_V_gas_std_unit:  float         # scf or sm³ — sum over all stages
+    total_V_gas_recomb_cc: float         # cc @ recombination P and T — sum over all stages
     R_total_input:         float         # total GOR in input units
     R_total_cc:            float         # total GOR in cc/cc
     GOR_check:             float         # back-calculated total GOR (input units)
+    cylinder_mix_ratio:    float         # cc gas @ recomb / cc separator oil
+    P_recomb_psia:         float         # recombination pressure in psia
+    T_recomb_F:            float         # recombination temperature in °F
+    T_recomb_R:            float         # recombination temperature in Rankine
+    Z_recomb:              float
     units:                 Units
 
 
 def validate_multistage(
     stages: list,
-    V_cell: float,
+    V_live: float,
     Bo_sep: float,
-    oil_fraction: float,
+    P_recomb: float,
+    T_recomb: float,
+    Z_recomb: float,
     units: Units,
 ) -> list[str]:
     """Validate multi-stage inputs. Returns list of error strings."""
@@ -196,43 +206,65 @@ def validate_multistage(
             errors.append(f"Stage {i} temperature (°F) looks unrealistically low.")
         if units == "si" and s.T < -73:
             errors.append(f"Stage {i} temperature (°C) looks unrealistically low.")
-    if V_cell <= 0:
-        errors.append("Cell volume must be > 0 cc.")
+    if V_live <= 0:
+        errors.append("Live fluid volume must be > 0 cc.")
     if Bo_sep <= 0 or Bo_sep > 5.0:
         errors.append("Bo_sep must be in range (0, 5.0].")
-    if not (0.0 < oil_fraction < 1.0):
-        errors.append("Oil fraction must be between 0 and 1 (exclusive).")
+    if P_recomb <= 0:
+        errors.append("Recombination pressure must be > 0.")
+    if Z_recomb <= 0 or Z_recomb > 2.0:
+        errors.append("Recombination Z-factor must be in (0, 2.0].")
+    if units == "field" and T_recomb < -100:
+        errors.append("Recombination temperature (°F) looks unrealistically low.")
+    if units == "si" and T_recomb < -73:
+        errors.append("Recombination temperature (°C) looks unrealistically low.")
     return errors
 
 
 def calculate_multistage(
     stages: list,
-    V_cell: float,
+    V_live: float,
     Bo_sep: float,
-    oil_fraction: float,
+    P_recomb: float,
+    T_recomb: float,
+    Z_recomb: float,
     units: Units,
 ) -> MultiStageResults:
     """
-    Multi-stage separator recombination.
+    Multi-stage separator recombination with explicit recombination conditions.
 
-    The separator oil is always charged from the final (lowest-pressure) stage.
-    Gas from each stage is collected separately; each contributes a portion of
-    the total solution GOR, so each stage gas volume is proportional to its R_i.
+    The separator oil is charged from the final (lowest-pressure) stage.
+    Gas from each stage contributes a portion of the total GOR.
+    The cylinder mix ratio is calculated at recombination P & T (cell charging
+    conditions), which are typically different from separator conditions.
 
     Steps
     -----
-    1. Compute oil volumes from cell volume & Bo.
-    2. For each stage: convert GOR to cc/cc, compute V_gas_std and V_gas_sep.
-    3. Sum gas volumes; back-calculate total GOR for verification.
+    1. Convert recombination P, T to internal units.
+    2. Compute factor_recomb = cc gas @ recomb / cc gas @ std.
+    3. cylinder_mix_ratio = R_total_cc × factor_recomb / Bo_sep
+       (cc gas @ recomb per cc separator oil)
+    4. V_oil_sep = V_live / (1 + cylinder_mix_ratio)
+       so that V_oil_sep + V_gas_recomb_total = V_live exactly.
+    5. For each stage: compute gas volumes at std, separator, and recomb conditions.
     """
-    V_oil_sep = oil_fraction * V_cell
-    V_oil_STO = V_oil_sep / Bo_sep
+    # ── Convert recombination conditions ────────────────────────────────────
+    if units == "field":
+        P_recomb_psia = P_recomb
+        T_recomb_F    = T_recomb
+        T_recomb_R    = T_recomb + 459.67
+    else:
+        P_recomb_psia = P_recomb * BARA_TO_PSIA
+        T_recomb_F    = T_recomb * 9.0 / 5.0 + 32.0
+        T_recomb_R    = T_recomb_F + 459.67
 
-    stage_results: list[StageResult] = []
+    # cc gas @ recomb conditions per cc gas @ standard conditions
+    factor_recomb = (P_STD_PSIA / P_recomb_psia) * (T_recomb_R / T_STD_R) * Z_recomb
+
+    # ── First pass: accumulate total R_cc ───────────────────────────────────
+    stage_raw: list[tuple] = []
     total_R_cc = 0.0
-
     for i, stage in enumerate(stages, 1):
-        # Unit conversion per stage
         if units == "field":
             P_psia = stage.P
             T_F    = stage.T
@@ -243,17 +275,23 @@ def calculate_multistage(
             T_F    = stage.T * 9.0 / 5.0 + 32.0
             T_R    = T_F + 459.67
             R_cc   = stage.R   # sm³/sm³ == cc/cc
-
-        V_gas_std_cc   = R_cc * V_oil_STO
-        V_gas_std_unit = V_gas_std_cc / SCF_TO_CC if units == "field" else V_gas_std_cc * CC_TO_SM3
-        V_gas_sep      = (
-            V_gas_std_cc
-            * (P_STD_PSIA / P_psia)
-            * (T_R / T_STD_R)
-            * stage.Z
-        )
-
         total_R_cc += R_cc
+        stage_raw.append((i, stage, P_psia, T_F, T_R, R_cc))
+
+    # ── Oil volumes ──────────────────────────────────────────────────────────
+    # cylinder_mix_ratio = cc gas @ recomb / cc sep oil
+    cylinder_mix_ratio = total_R_cc * factor_recomb / Bo_sep
+    V_oil_sep          = V_live / (1.0 + cylinder_mix_ratio)
+    V_oil_STO          = V_oil_sep / Bo_sep
+
+    # ── Per-stage gas volumes ────────────────────────────────────────────────
+    stage_results: list[StageResult] = []
+    for (i, stage, P_psia, T_F, T_R, R_cc) in stage_raw:
+        V_gas_std_cc    = R_cc * V_oil_STO
+        V_gas_std_unit  = V_gas_std_cc / SCF_TO_CC if units == "field" else V_gas_std_cc * CC_TO_SM3
+        V_gas_sep       = V_gas_std_cc * (P_STD_PSIA / P_psia) * (T_R    / T_STD_R) * stage.Z
+        V_gas_recomb_cc = V_gas_std_cc * factor_recomb
+
         stage_results.append(StageResult(
             stage_num=i,
             label=stage.label or f"Stage {i}",
@@ -262,6 +300,7 @@ def calculate_multistage(
             V_gas_std_cc=V_gas_std_cc,
             V_gas_std_unit=V_gas_std_unit,
             V_gas_sep=V_gas_sep,
+            V_gas_recomb_cc=V_gas_recomb_cc,
             P_psia=P_psia,
             T_R=T_R,
             T_F=T_F,
@@ -269,12 +308,12 @@ def calculate_multistage(
             pct_of_total=0.0,   # filled below
         ))
 
-    # Fill percentage contribution per stage
     for sr in stage_results:
         sr.pct_of_total = (sr.R_cc / total_R_cc * 100.0) if total_R_cc > 0 else 0.0
 
-    total_V_gas_std_cc   = sum(sr.V_gas_std_cc   for sr in stage_results)
-    total_V_gas_std_unit = sum(sr.V_gas_std_unit for sr in stage_results)
+    total_V_gas_std_cc    = sum(sr.V_gas_std_cc    for sr in stage_results)
+    total_V_gas_std_unit  = sum(sr.V_gas_std_unit  for sr in stage_results)
+    total_V_gas_recomb_cc = sum(sr.V_gas_recomb_cc for sr in stage_results)
 
     if units == "field":
         R_total_input = total_R_cc / SCF_STB_TO_CC_CC
@@ -284,14 +323,21 @@ def calculate_multistage(
         GOR_check     = (total_V_gas_std_cc / V_oil_STO) if V_oil_STO > 0 else 0.0
 
     return MultiStageResults(
+        V_live=V_live,
         V_oil_sep=V_oil_sep,
         V_oil_STO=V_oil_STO,
         stage_results=stage_results,
         total_V_gas_std_cc=total_V_gas_std_cc,
         total_V_gas_std_unit=total_V_gas_std_unit,
+        total_V_gas_recomb_cc=total_V_gas_recomb_cc,
         R_total_input=R_total_input,
         R_total_cc=total_R_cc,
         GOR_check=GOR_check,
+        cylinder_mix_ratio=cylinder_mix_ratio,
+        P_recomb_psia=P_recomb_psia,
+        T_recomb_F=T_recomb_F,
+        T_recomb_R=T_recomb_R,
+        Z_recomb=Z_recomb,
         units=units,
     )
 

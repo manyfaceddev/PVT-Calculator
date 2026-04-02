@@ -16,6 +16,7 @@ from pvt_calc import (
     BARA_TO_PSIA,
     P_STD_PSIA,
     T_STD_R,
+    T_STD_F,
 )
 
 # ---------------------------------------------------------------------------
@@ -233,24 +234,24 @@ div[data-testid="stNumberInput"] input { font-size: 1rem !important; }
 EXAMPLES: dict[str, dict | None] = {
     "— select an example —": None,
     "Light oil, North Sea (high GOR)": {
-        "units": "field", "n_stages": 1,
-        "v_cell": 300.0, "oil_fraction": 0.72, "bo_sep": 1.00,
+        "units": "field", "n_stages": 1, "v_live": 2000.0, "bo_sep": 1.00,
+        "p_recomb": 5014.73, "t_recomb": 70.0, "z_recomb": 1.00,
         "r_sep_1": 850.0, "p_sep_1": 800.0, "t_sep_1": 140.0, "z_sep_1": 0.865,
         "r_sep_2":  50.0, "p_sep_2":  65.0, "t_sep_2": 100.0, "z_sep_2": 0.977,
         "r_sep_3":  20.0, "p_sep_3":  35.0, "t_sep_3":  75.0, "z_sep_3": 0.991,
         "show_pb": True, "gamma_g": 0.72, "api_gravity": 42.0, "t_res": 210.0,
     },
     "Medium oil, Middle East (moderate GOR)": {
-        "units": "field", "n_stages": 1,
-        "v_cell": 250.0, "oil_fraction": 0.70, "bo_sep": 1.01,
+        "units": "field", "n_stages": 1, "v_live": 2000.0, "bo_sep": 1.01,
+        "p_recomb": 5014.73, "t_recomb": 70.0, "z_recomb": 1.00,
         "r_sep_1": 380.0, "p_sep_1": 150.0, "t_sep_1": 120.0, "z_sep_1": 0.921,
         "r_sep_2":  20.0, "p_sep_2":  50.0, "t_sep_2":  90.0, "z_sep_2": 0.986,
         "r_sep_3":  10.0, "p_sep_3":  20.0, "t_sep_3":  75.0, "z_sep_3": 0.994,
         "show_pb": True, "gamma_g": 0.76, "api_gravity": 34.0, "t_res": 175.0,
     },
     "Heavy oil, Offshore (low GOR)": {
-        "units": "field", "n_stages": 1,
-        "v_cell": 200.0, "oil_fraction": 0.68, "bo_sep": 1.03,
+        "units": "field", "n_stages": 1, "v_live": 2000.0, "bo_sep": 1.03,
+        "p_recomb": 5014.73, "t_recomb": 70.0, "z_recomb": 1.00,
         "r_sep_1": 100.0, "p_sep_1":  60.0, "t_sep_1": 100.0, "z_sep_1": 0.972,
         "r_sep_2":  10.0, "p_sep_2":  20.0, "t_sep_2":  75.0, "z_sep_2": 0.990,
         "r_sep_3":   5.0, "p_sep_3":  10.0, "t_sep_3":  60.0, "z_sep_3": 0.995,
@@ -295,11 +296,12 @@ DIAGRAMS = {1: DIAGRAM_1, 2: DIAGRAM_2, 3: DIAGRAM_3}
 # ---------------------------------------------------------------------------
 SS_DEFAULTS: dict = {
     "units": "field", "_units_prev": "field",
-    "n_stages": 1, "v_cell": 300.0, "oil_fraction": 0.70, "bo_sep": 1.00,
-    "r_sep_1": 850.0, "p_sep_1": 800.0, "t_sep_1": 140.0, "z_sep_1": 0.865,
-    "r_sep_2":  50.0, "p_sep_2":  65.0, "t_sep_2": 100.0, "z_sep_2": 0.977,
-    "r_sep_3":  20.0, "p_sep_3":  35.0, "t_sep_3":  75.0, "z_sep_3": 0.991,
-    "show_pb": True, "gamma_g": 0.72, "api_gravity": 42.0, "t_res": 210.0,
+    "n_stages": 1, "v_live": 2000.0, "bo_sep": 1.00,
+    "p_recomb": 5014.73, "t_recomb": 70.0, "z_recomb": 1.00,
+    "r_sep_1": 583.0, "p_sep_1": 150.0, "t_sep_1": 120.0, "z_sep_1": 0.921,
+    "r_sep_2":  20.0, "p_sep_2":  50.0, "t_sep_2":  90.0, "z_sep_2": 0.986,
+    "r_sep_3":  10.0, "p_sep_3":  20.0, "t_sep_3":  75.0, "z_sep_3": 0.994,
+    "show_pb": True, "gamma_g": 0.76, "api_gravity": 34.0, "t_res": 175.0,
     "example_sel": "— select an example —",
 }
 for k, v in SS_DEFAULTS.items():
@@ -337,6 +339,16 @@ def _on_units_change() -> None:
             st.session_state[f"p_sep_{n}"] = round(p * BARA_TO_PSIA,    1)
             st.session_state[f"t_sep_{n}"] = round(t * 9/5 + 32.0,      1)
             st.session_state[f"r_sep_{n}"] = round(r / SCF_STB_TO_CC_CC, 1)
+    # Convert recombination conditions
+    pr = st.session_state.get("p_recomb", P_STD_PSIA)
+    tr_recomb = st.session_state.get("t_recomb", T_STD_F)
+    if to_si:
+        st.session_state["p_recomb"] = round(pr / BARA_TO_PSIA,      2)
+        st.session_state["t_recomb"] = round((tr_recomb - 32.0) * 5/9, 1)
+    elif to_field:
+        st.session_state["p_recomb"] = round(pr * BARA_TO_PSIA,      1)
+        st.session_state["t_recomb"] = round(tr_recomb * 9/5 + 32.0,  1)
+    # Convert reservoir temperature
     tr = st.session_state.get("t_res", 200.0)
     if to_si:
         st.session_state["t_res"] = round((tr - 32.0) * 5/9, 1)
@@ -370,12 +382,25 @@ with st.sidebar:
     )
     st.markdown("---")
 
-    st.markdown("### 🛢️ Cell & Oil")
-    st.number_input("Cell Volume (cc)", min_value=1.0, max_value=5000.0, step=10.0, key="v_cell")
-    st.slider("Oil Fraction", min_value=0.40, max_value=0.90, step=0.01, key="oil_fraction",
-              help="Fraction of cell to fill with separator oil (0.65–0.80 typical)")
-    st.number_input("Bo at Separator (res vol/STO vol)", min_value=0.80, max_value=3.00,
+    st.markdown("### 🛢️ Live Fluid")
+    st.number_input("Live Fluid Volume (cc)", min_value=1.0, max_value=10000.0, step=100.0,
+                    key="v_live",
+                    help="Total volume of recombined fluid to prepare (oil + gas at recomb P & T)")
+    st.number_input("Bo at Separator (res vol / STO vol)", min_value=0.80, max_value=3.00,
                     step=0.01, key="bo_sep")
+    st.markdown("---")
+
+    _p_recomb_lbl = "Recomb. Pressure (psia)" if st.session_state["units"] == "field" else "Recomb. Pressure (bara)"
+    _t_recomb_lbl = "Recomb. Temperature (°F)" if st.session_state["units"] == "field" else "Recomb. Temperature (°C)"
+    st.markdown("### 🔩 Recombination Conditions")
+    st.number_input(_p_recomb_lbl, min_value=14.7, max_value=30000.0, step=100.0,
+                    key="p_recomb",
+                    help="Cell charging pressure — typically 3 000–10 000 psia. Enter absolute pressure.")
+    st.number_input(_t_recomb_lbl, step=1.0, key="t_recomb",
+                    help="Temperature at which gas cylinder and PVT cell are charged")
+    st.number_input("Z-factor @ Recomb. P & T", min_value=0.01, max_value=2.00,
+                    step=0.001, format="%.3f", key="z_recomb",
+                    help="Gas compressibility factor at recombination conditions")
     st.markdown("---")
 
     units    = st.session_state["units"]
@@ -418,16 +443,18 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 # Read session state
 # ---------------------------------------------------------------------------
-units        = st.session_state["units"]
-n_stages     = st.session_state["n_stages"]
-v_cell       = st.session_state["v_cell"]
-oil_fraction = st.session_state["oil_fraction"]
-bo_sep       = st.session_state["bo_sep"]
-show_pb      = st.session_state["show_pb"]
-gamma_g      = st.session_state.get("gamma_g",     0.72)
-api_gravity  = st.session_state.get("api_gravity", 40.0)
-t_res_raw    = st.session_state.get("t_res",       200.0)
-labels       = STAGE_LABELS[n_stages]
+units       = st.session_state["units"]
+n_stages    = st.session_state["n_stages"]
+v_live      = st.session_state["v_live"]
+bo_sep      = st.session_state["bo_sep"]
+p_recomb    = st.session_state["p_recomb"]
+t_recomb    = st.session_state["t_recomb"]
+z_recomb    = st.session_state["z_recomb"]
+show_pb     = st.session_state["show_pb"]
+gamma_g     = st.session_state.get("gamma_g",     0.72)
+api_gravity = st.session_state.get("api_gravity", 40.0)
+t_res_raw   = st.session_state.get("t_res",       200.0)
+labels      = STAGE_LABELS[n_stages]
 
 stages = [
     SeparatorStage(
@@ -443,7 +470,7 @@ stages = [
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
-errors = validate_multistage(stages, v_cell, bo_sep, oil_fraction, units)
+errors = validate_multistage(stages, v_live, bo_sep, p_recomb, t_recomb, z_recomb, units)
 if errors:
     st.markdown("""
     <div class="pvt-header">
@@ -459,7 +486,7 @@ if errors:
 # ---------------------------------------------------------------------------
 # Calculate
 # ---------------------------------------------------------------------------
-res = calculate_multistage(stages, v_cell, bo_sep, oil_fraction, units)
+res = calculate_multistage(stages, v_live, bo_sep, p_recomb, t_recomb, z_recomb, units)
 
 if units == "field":
     gor_unit  = "scf/STB"
@@ -511,11 +538,11 @@ for sr in res.stage_results:
     pct = f" ({sr.pct_of_total:.0f}% of GOR)" if n_stages > 1 else ""
     gas_rows_html += (
         f'<div class="charge-row"><div>'
-        f'<span class="charge-val">{sr.V_gas_std_cc:,.1f}</span>'
-        f'<span class="charge-unit">cc gas</span>'
+        f'<span class="charge-val">{sr.V_gas_recomb_cc:,.1f}</span>'
+        f'<span class="charge-unit">cc gas @ recomb</span>'
         f'<div class="charge-label">Stage {sr.stage_num} ({sr.label})'
-        f' · {sr.V_gas_std_unit:.4f} {gas_unit} · std cond.'
-        f' · {sr.V_gas_sep:.1f} cc @ sep cond.{pct}</div>'
+        f' · {sr.V_gas_std_cc:,.1f} cc @ std'
+        f' · {sr.V_gas_std_unit:.4f} {gas_unit}{pct}</div>'
         f'</div></div>'
     )
 
@@ -524,33 +551,39 @@ if n_stages > 1:
     total_gas_row = (
         f'<hr class="hero-divider">'
         f'<div class="charge-row"><div>'
-        f'<span class="charge-val">{res.total_V_gas_std_cc:,.1f}</span>'
-        f'<span class="charge-unit">cc total gas</span>'
-        f'<div class="charge-label">{res.total_V_gas_std_unit:.4f} {gas_unit}'
-        f' · all stages combined · std cond.</div>'
+        f'<span class="charge-val">{res.total_V_gas_recomb_cc:,.1f}</span>'
+        f'<span class="charge-unit">cc total gas @ recomb</span>'
+        f'<div class="charge-label">{res.total_V_gas_std_cc:,.1f} cc @ std'
+        f' · {res.total_V_gas_std_unit:.4f} {gas_unit} · all stages</div>'
         f'</div></div>'
     )
 
 gor_check_str = f"{res.GOR_check:.1f} {gor_unit} ✓" if gor_err_pct < 0.1 else f"{res.GOR_check:.1f} {gor_unit} ⚠"
+mix_ratio_pct = res.cylinder_mix_ratio * 100.0
 
 st.markdown(f"""
 <div class="pvt-hero">
-    <div class="hero-title">⚗️ Charge Instructions</div>
+    <div class="hero-title">⚗️ Charge Instructions — {v_live:.0f} cc live fluid @ {res.T_recomb_F:.0f}°F / {res.P_recomb_psia:.0f} psia</div>
     <div class="charge-row">
         <div>
             <span class="charge-val">{res.V_oil_sep:,.1f}</span>
             <span class="charge-unit">cc oil</span>
-            <div class="charge-label">Separator oil to charge · {labels[-1]}</div>
+            <div class="charge-label">Separator oil · {labels[-1]} · ({100/(1+res.cylinder_mix_ratio):.1f}% of live fluid)</div>
         </div>
     </div>
     <hr class="hero-divider">
     {gas_rows_html}
     {total_gas_row}
     <hr class="hero-divider">
+    <div class="charge-row"><div>
+        <span class="charge-val">{res.cylinder_mix_ratio:.4f}</span>
+        <span class="charge-unit">cc/cc</span>
+        <div class="charge-label">Cylinder mix ratio — cc gas @ recomb P&amp;T per cc separator oil</div>
+    </div></div>
+    <hr class="hero-divider">
     <div class="hero-sub">
         GOR: {res.R_total_input:.1f} {gor_unit} &nbsp;·&nbsp;
-        Cell: {v_cell:.0f} cc &nbsp;·&nbsp;
-        Oil fill: {oil_fraction*100:.0f}% &nbsp;·&nbsp;
+        Recomb: {res.P_recomb_psia:.0f} psia / {res.T_recomb_F:.0f}°F / Z={res.Z_recomb:.3f} &nbsp;·&nbsp;
         GOR check: {gor_check_str}
     </div>
 </div>
@@ -568,20 +601,25 @@ if show_pb:
 
 st.markdown(f"""
 <div class="pvt-card-row">
-    <div class="pvt-metric-card">
+    <div class="pvt-metric-card accent">
         <div class="m-val">{res.V_oil_sep:,.1f}</div>
-        <div class="m-unit">cc</div>
-        <div class="m-lbl">Sep. Oil Charge</div>
+        <div class="m-unit">cc oil</div>
+        <div class="m-lbl">Oil to Charge</div>
+    </div>
+    <div class="pvt-metric-card accent">
+        <div class="m-val">{res.total_V_gas_recomb_cc:,.1f}</div>
+        <div class="m-unit">cc @ recomb</div>
+        <div class="m-lbl">Gas to Charge</div>
     </div>
     <div class="pvt-metric-card">
-        <div class="m-val">{res.V_oil_STO:,.1f}</div>
-        <div class="m-unit">cc</div>
-        <div class="m-lbl">STO Oil Equiv.</div>
+        <div class="m-val">{res.cylinder_mix_ratio:.4f}</div>
+        <div class="m-unit">cc/cc</div>
+        <div class="m-lbl">Mix Ratio</div>
     </div>
     <div class="pvt-metric-card">
         <div class="m-val">{res.total_V_gas_std_cc:,.1f}</div>
         <div class="m-unit">cc @ std</div>
-        <div class="m-lbl">Total Gas</div>
+        <div class="m-lbl">Gas @ Std</div>
     </div>
     <div class="pvt-metric-card">
         <div class="m-val">{res.R_total_input:,.1f}</div>
@@ -621,9 +659,10 @@ for sr in res.stage_results:
         f'<div class="stage-card">'
         f'<div class="sc-title">Stage {sr.stage_num} — {sr.label}{pct_str}</div>'
         f'<div class="sc-row"><span class="sc-lbl">GOR</span><span class="sc-val">{sr.R_input:.1f} {gor_unit}</span></div>'
-        f'<div class="sc-row"><span class="sc-lbl">P / T / Z</span><span class="sc-val">{p_disp} · {t_disp} · {sr.Z:.3f}</span></div>'
+        f'<div class="sc-row"><span class="sc-lbl">Sep. P / T / Z</span><span class="sc-val">{p_disp} · {t_disp} · {sr.Z:.3f}</span></div>'
         f'<div class="sc-row"><span class="sc-lbl">Gas @ std cond.</span><span class="sc-val">{sr.V_gas_std_cc:,.2f} cc &nbsp;({sr.V_gas_std_unit:.5f} {gas_unit})</span></div>'
         f'<div class="sc-row"><span class="sc-lbl">Gas @ sep cond.</span><span class="sc-val">{sr.V_gas_sep:,.2f} cc</span></div>'
+        f'<div class="sc-row"><span class="sc-lbl">Gas @ recomb cond.</span><span class="sc-val" style="color:#1a6dad;font-size:1rem;">{sr.V_gas_recomb_cc:,.2f} cc</span></div>'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -637,8 +676,18 @@ with st.expander("📐 Calculation Steps", expanded=False):
             unsafe_allow_html=True,
         )
 
-    _step("Step 1 — Separator oil charge",
-          f"V_oil_sep = {oil_fraction:.2f} × {v_cell:.1f} = <b>{res.V_oil_sep:.2f} cc</b><br>"
+    _step("Step 1 — Cylinder mix ratio",
+          f"factor_recomb = (P_std/P_recomb) × (T_recomb/T_std) × Z_recomb<br>"
+          f"&nbsp;&nbsp;&nbsp;= ({P_STD_PSIA:.3f}/{res.P_recomb_psia:.2f})"
+          f" × ({res.T_recomb_R:.2f}/{T_STD_R:.2f})"
+          f" × {res.Z_recomb:.3f}"
+          f" = <b>{P_STD_PSIA/res.P_recomb_psia * res.T_recomb_R/T_STD_R * res.Z_recomb:.6f} cc recomb/cc std</b><br>"
+          f"mix_ratio = R_total_cc × factor / Bo = {res.R_total_cc:.5f} × ... / {bo_sep:.3f}"
+          f" = <b>{res.cylinder_mix_ratio:.6f} cc gas/cc oil</b>")
+
+    _step("Step 2 — Separator oil charge",
+          f"V_oil_sep = V_live / (1 + mix_ratio) = {v_live:.1f} / (1 + {res.cylinder_mix_ratio:.4f})"
+          f" = <b>{res.V_oil_sep:.2f} cc</b><br>"
           f"V_oil_STO = {res.V_oil_sep:.2f} / {bo_sep:.3f} = <b>{res.V_oil_STO:.2f} cc</b>")
 
     for sr in res.stage_results:
@@ -646,22 +695,19 @@ with st.expander("📐 Calculation Steps", expanded=False):
             gor_conv = f"{sr.R_input:.1f} scf/STB × 0.178107 = <b>{sr.R_cc:.5f} cc/cc</b>"
         else:
             gor_conv = f"R_cc = <b>{sr.R_cc:.5f} cc/cc</b>"
-        _step(f"Step {sr.stage_num + 1} — Stage {sr.stage_num} ({sr.label}) gas",
+        factor_r = P_STD_PSIA/res.P_recomb_psia * res.T_recomb_R/T_STD_R * res.Z_recomb
+        _step(f"Step {sr.stage_num + 2} — Stage {sr.stage_num} ({sr.label}) gas",
               f"{gor_conv}<br>"
               f"V_gas_std = {sr.R_cc:.5f} × {res.V_oil_STO:.2f} = <b>{sr.V_gas_std_cc:.2f} cc</b>"
               f" ({sr.V_gas_std_unit:.5f} {gas_unit})<br>"
-              f"V_gas_sep = V_gas_std × (P_std/P) × (T/T_std) × Z<br>"
-              f"&nbsp;&nbsp;&nbsp;= {sr.V_gas_std_cc:.2f}"
-              f" × ({P_STD_PSIA:.3f}/{sr.P_psia:.2f})"
-              f" × ({sr.T_R:.2f}/{T_STD_R:.2f})"
-              f" × {sr.Z:.3f}"
-              f" = <b>{sr.V_gas_sep:.2f} cc</b>")
+              f"V_gas_recomb = V_gas_std × factor = {sr.V_gas_std_cc:.2f} × {factor_r:.6f}"
+              f" = <b>{sr.V_gas_recomb_cc:.2f} cc</b>")
 
     if n_stages > 1:
-        _step(f"Step {n_stages + 2} — Total gas",
-              " + ".join(f"{sr.V_gas_std_cc:.2f}" for sr in res.stage_results)
-              + f" = <b>{res.total_V_gas_std_cc:.2f} cc</b>"
-              f" ({res.total_V_gas_std_unit:.5f} {gas_unit})")
+        _step(f"Step {n_stages + 3} — Total gas",
+              " + ".join(f"{sr.V_gas_recomb_cc:.2f}" for sr in res.stage_results)
+              + f" = <b>{res.total_V_gas_recomb_cc:.2f} cc @ recomb</b>"
+              f" ({res.total_V_gas_std_cc:.2f} cc @ std)")
 
     gor_cls = "gor-ok" if gor_err_pct < 0.1 else "gor-warn"
     gor_sym = "✓" if gor_err_pct < 0.1 else "⚠"
@@ -687,38 +733,43 @@ with st.expander("📋 Lab Report — Full Data Sheet", expanded=False):
         )
 
     rows = ""
-    rows += _tsect("CELL SETUP")
-    rows += _trow("Cell Volume",      f"{v_cell:.2f}",      "cc")
-    rows += _trow("Oil Fraction",     f"{oil_fraction:.2f}", "")
-    rows += _trow("Bo (separator)",   f"{bo_sep:.4f}",       "res/STO")
-    rows += _trow("Stages",           str(n_stages))
-    rows += _trow("Units",            units)
+    rows += _tsect("SETUP")
+    rows += _trow("Live Fluid Volume", f"{v_live:.2f}",   "cc")
+    rows += _trow("Bo (separator)",    f"{bo_sep:.4f}",   "res/STO")
+    rows += _trow("Stages",            str(n_stages))
+    rows += _trow("Units",             units)
 
     rows += _tsect("STANDARD CONDITIONS")
     rows += _trow("P_std", "14.696", "psia")
     rows += _trow("T_std", "60.0 °F / 519.67 °R")
 
+    rows += _tsect("RECOMBINATION CONDITIONS")
+    rows += _trow("Pressure",   f"{res.P_recomb_psia:.2f}", "psia")
+    rows += _trow("Temperature",f"{res.T_recomb_F:.1f}",    "°F")
+    rows += _trow("Z-factor",   f"{res.Z_recomb:.4f}")
+
     for sr in res.stage_results:
         p_in = stages[sr.stage_num - 1].P
         t_in = stages[sr.stage_num - 1].T
         rows += _tsect(f"STAGE {sr.stage_num} — {sr.label}")
-        rows += _trow("GOR",         f"{sr.R_input:.2f}",  gor_unit)
-        rows += _trow("Pressure",    f"{p_in:.2f}",         pres_unit)
-        rows += _trow("Temperature", f"{t_in:.2f}",         temp_unit)
-        rows += _trow("Z-factor",    f"{sr.Z:.4f}")
-        rows += _trow("GOR (cc/cc)", f"{sr.R_cc:.6f}",     "cc/cc")
-        rows += _trow("Gas @ std",   f"{sr.V_gas_std_cc:.4f}", "cc")
-        rows += _trow("Gas @ std",   f"{sr.V_gas_std_unit:.6f}", gas_unit)
-        rows += _trow("Gas @ stage", f"{sr.V_gas_sep:.4f}", "cc")
-        rows += _trow("% of GOR",    f"{sr.pct_of_total:.2f}", "%")
+        rows += _trow("GOR",              f"{sr.R_input:.2f}",         gor_unit)
+        rows += _trow("Sep. Pressure",    f"{p_in:.2f}",               pres_unit)
+        rows += _trow("Sep. Temperature", f"{t_in:.2f}",               temp_unit)
+        rows += _trow("Sep. Z-factor",    f"{sr.Z:.4f}")
+        rows += _trow("GOR (cc/cc)",      f"{sr.R_cc:.6f}",            "cc/cc")
+        rows += _trow("Gas @ std",        f"{sr.V_gas_std_cc:.4f}",    "cc")
+        rows += _trow("Gas @ std",        f"{sr.V_gas_std_unit:.6f}",  gas_unit)
+        rows += _trow("Gas @ sep cond.",  f"{sr.V_gas_sep:.4f}",       "cc")
+        rows += _trow("Gas @ recomb",     f"{sr.V_gas_recomb_cc:.4f}", "cc")
+        rows += _trow("% of GOR",         f"{sr.pct_of_total:.2f}",    "%")
 
-    rows += _tsect("CHARGES — OIL")
-    rows += _trow("Separator Oil", f"{res.V_oil_sep:.4f}", "cc")
-    rows += _trow("STO Oil Equiv.", f"{res.V_oil_STO:.4f}", "cc")
-
-    rows += _tsect("CHARGES — GAS (TOTAL)")
-    rows += _trow("Total Gas @ std", f"{res.total_V_gas_std_cc:.4f}", "cc")
-    rows += _trow("Total Gas @ std", f"{res.total_V_gas_std_unit:.6f}", gas_unit)
+    rows += _tsect("CHARGE VOLUMES")
+    rows += _trow("Separator Oil",          f"{res.V_oil_sep:.4f}",            "cc")
+    rows += _trow("STO Oil Equiv.",         f"{res.V_oil_STO:.4f}",            "cc")
+    rows += _trow("Total Gas @ recomb",     f"{res.total_V_gas_recomb_cc:.4f}","cc")
+    rows += _trow("Total Gas @ std",        f"{res.total_V_gas_std_cc:.4f}",   "cc")
+    rows += _trow("Total Gas @ std",        f"{res.total_V_gas_std_unit:.6f}", gas_unit)
+    rows += _trow("Cylinder Mix Ratio",     f"{res.cylinder_mix_ratio:.6f}",   "cc gas @ recomb / cc oil")
 
     rows += _tsect("VERIFICATION")
     rows += _trow("GOR (input)",      f"{res.R_total_input:.4f}", gor_unit)
