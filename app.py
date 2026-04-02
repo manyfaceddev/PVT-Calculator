@@ -233,7 +233,7 @@ div[data-testid="stNumberInput"] input { font-size: 1rem !important; }
 EXAMPLES: dict[str, dict | None] = {
     "— select an example —": None,
     "Light oil, North Sea (high GOR)": {
-        "units": "field", "n_stages": 2,
+        "units": "field", "n_stages": 1,
         "v_cell": 300.0, "oil_fraction": 0.72, "bo_sep": 1.00,
         "r_sep_1": 850.0, "p_sep_1": 800.0, "t_sep_1": 140.0, "z_sep_1": 0.865,
         "r_sep_2":  50.0, "p_sep_2":  65.0, "t_sep_2": 100.0, "z_sep_2": 0.977,
@@ -241,7 +241,7 @@ EXAMPLES: dict[str, dict | None] = {
         "show_pb": True, "gamma_g": 0.72, "api_gravity": 42.0, "t_res": 210.0,
     },
     "Medium oil, Middle East (moderate GOR)": {
-        "units": "field", "n_stages": 2,
+        "units": "field", "n_stages": 1,
         "v_cell": 250.0, "oil_fraction": 0.70, "bo_sep": 1.01,
         "r_sep_1": 380.0, "p_sep_1": 150.0, "t_sep_1": 120.0, "z_sep_1": 0.921,
         "r_sep_2":  20.0, "p_sep_2":  50.0, "t_sep_2":  90.0, "z_sep_2": 0.986,
@@ -514,7 +514,8 @@ for sr in res.stage_results:
         f'<span class="charge-val">{sr.V_gas_std_cc:,.1f}</span>'
         f'<span class="charge-unit">cc gas</span>'
         f'<div class="charge-label">Stage {sr.stage_num} ({sr.label})'
-        f' · {sr.V_gas_std_unit:.4f} {gas_unit} · std cond.{pct}</div>'
+        f' · {sr.V_gas_std_unit:.4f} {gas_unit} · std cond.'
+        f' · {sr.V_gas_sep:.1f} cc @ sep cond.{pct}</div>'
         f'</div></div>'
     )
 
@@ -610,29 +611,22 @@ if show_pb:
     </div>
     """, unsafe_allow_html=True)
 
-# ── Per-stage breakdown (multi-stage only) ───────────────────────────────────
-if n_stages > 1:
-    st.markdown('<div class="pvt-section">Per-Stage Gas Volumes</div>', unsafe_allow_html=True)
-    for sr in res.stage_results:
-        p_disp = f"{stages[sr.stage_num-1].P:.1f} {pres_unit}"
-        t_disp = f"{stages[sr.stage_num-1].T:.1f} {temp_unit}"
-        st.markdown(f"""
-        <div class="stage-card">
-            <div class="sc-title">Stage {sr.stage_num} — {sr.label}
-                &nbsp;<span style="font-weight:400; color:#4a6080; font-size:0.8rem;">
-                ({sr.pct_of_total:.1f}% of GOR)
-                </span>
-            </div>
-            <div class="sc-row"><span class="sc-lbl">GOR</span>
-                <span class="sc-val">{sr.R_input:.1f} {gor_unit}</span></div>
-            <div class="sc-row"><span class="sc-lbl">P / T / Z</span>
-                <span class="sc-val">{p_disp} · {t_disp} · {sr.Z:.3f}</span></div>
-            <div class="sc-row"><span class="sc-lbl">Gas @ std cond.</span>
-                <span class="sc-val">{sr.V_gas_std_cc:,.2f} cc &nbsp;({sr.V_gas_std_unit:.5f} {gas_unit})</span></div>
-            <div class="sc-row"><span class="sc-lbl">Gas @ stage cond.</span>
-                <span class="sc-val">{sr.V_gas_sep:,.2f} cc</span></div>
-        </div>
-        """, unsafe_allow_html=True)
+# ── Per-stage breakdown ───────────────────────────────────────────────────────
+st.markdown('<div class="pvt-section">Separator Conditions &amp; Gas Volumes</div>', unsafe_allow_html=True)
+for sr in res.stage_results:
+    p_disp = f"{stages[sr.stage_num-1].P:.1f} {pres_unit}"
+    t_disp = f"{stages[sr.stage_num-1].T:.1f} {temp_unit}"
+    pct_str = f'&nbsp;<span style="font-weight:400; color:#4a6080; font-size:0.8rem;">({sr.pct_of_total:.1f}% of GOR)</span>' if n_stages > 1 else ""
+    st.markdown(
+        f'<div class="stage-card">'
+        f'<div class="sc-title">Stage {sr.stage_num} — {sr.label}{pct_str}</div>'
+        f'<div class="sc-row"><span class="sc-lbl">GOR</span><span class="sc-val">{sr.R_input:.1f} {gor_unit}</span></div>'
+        f'<div class="sc-row"><span class="sc-lbl">P / T / Z</span><span class="sc-val">{p_disp} · {t_disp} · {sr.Z:.3f}</span></div>'
+        f'<div class="sc-row"><span class="sc-lbl">Gas @ std cond.</span><span class="sc-val">{sr.V_gas_std_cc:,.2f} cc &nbsp;({sr.V_gas_std_unit:.5f} {gas_unit})</span></div>'
+        f'<div class="sc-row"><span class="sc-lbl">Gas @ sep cond.</span><span class="sc-val">{sr.V_gas_sep:,.2f} cc</span></div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 # ── Calculation steps (collapsible) ─────────────────────────────────────────
 with st.expander("📐 Calculation Steps", expanded=False):
@@ -769,3 +763,15 @@ st.markdown("""
     <em>Verify with a qualified reservoir engineer before laboratory use.</em>
 </p>
 """, unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
+# Local runner — allows `python app.py` in VSCode / terminal
+# ---------------------------------------------------------------------------
+if __name__ == "__main__":
+    import subprocess
+    import sys
+    import os
+    subprocess.run(
+        [sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__)],
+        check=False,
+    )
