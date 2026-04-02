@@ -4,22 +4,24 @@ cli.py — Command-line interface for PVT Separator Recombination Calculator.
 
 Usage examples:
   # Single stage (field units)
-  python cli.py --gor 850 --p_sep 815 --t_sep 145 --z_sep 0.855 --v_cell 300
+  python cli.py --gor 850 --p_sep 815 --t_sep 145 --z_sep 0.855 \\
+                --v_live 300 --p_recomb 5014.7 --t_recomb 200 --z_recomb 0.820
 
   # Two-stage with Pb estimate
-  python cli.py --gor 850 --p_sep 800 --t_sep 140 --z_sep 0.865 --v_cell 300 \
-                --stages 2 --gor2 50 --p2 65 --t2 100 --z2 0.977 \
+  python cli.py --gor 850 --p_sep 800 --t_sep 140 --z_sep 0.865 \\
+                --stages 2 --gor2 50 --p2 65 --t2 100 --z2 0.977 \\
+                --v_live 300 --p_recomb 5014.7 --t_recomb 200 --z_recomb 0.820 \\
                 --api 42 --sg_gas 0.72
 
   # SI units
-  python cli.py --units si --gor 151.4 --p_sep 55.8 --t_sep 62.8 \
-                --z_sep 0.865 --v_cell 300
+  python cli.py --units si --gor 151.4 --p_sep 55.8 --t_sep 62.8 --z_sep 0.865 \\
+                --v_live 300 --p_recomb 346.7 --t_recomb 93.3 --z_recomb 0.820
 """
 
 import argparse
 import sys
 
-from pvt_calc import (
+from pvt import (
     SeparatorStage,
     calculate_multistage,
     validate_multistage,
@@ -69,12 +71,16 @@ def build_parser() -> argparse.ArgumentParser:
     g3.add_argument("--t3",   type=float, metavar="F3",     help="Stage 3 temperature")
     g3.add_argument("--z3",   type=float, metavar="Z3",     help="Stage 3 Z-factor")
 
-    # ── Cell configuration ───────────────────────────────────────────────────
-    gc = p.add_argument_group("Cell configuration")
-    gc.add_argument("--v_cell",   type=float, required=True, metavar="CC",
-                    help="Recombination cell volume (cc)")
-    gc.add_argument("--oil_frac", type=float, default=0.70,  metavar="FRAC",
-                    help="Oil fraction of cell volume (default: 0.70)")
+    # ── Live fluid & recombination conditions ────────────────────────────────
+    gc = p.add_argument_group("Live fluid & recombination conditions")
+    gc.add_argument("--v_live",   type=float, required=True, metavar="CC",
+                    help="Volume of live fluid to prepare (cc)")
+    gc.add_argument("--p_recomb", type=float, required=True, metavar="PSIA_or_BARA",
+                    help="Recombination (charging) pressure (psia or bara)")
+    gc.add_argument("--t_recomb", type=float, required=True, metavar="F_or_C",
+                    help="Recombination (charging) temperature (°F or °C)")
+    gc.add_argument("--z_recomb", type=float, default=1.0, metavar="Z",
+                    help="Z-factor of gas at recombination P & T (default: 1.0)")
     gc.add_argument("--bo_sep",   type=float, default=1.00,  metavar="BO",
                     help="Oil FVF at separator conditions (default: 1.00)")
     gc.add_argument("--stages",   type=int,   default=1, choices=[1, 2, 3],
@@ -107,8 +113,8 @@ def build_parser() -> argparse.ArgumentParser:
 # Report formatting helpers
 # ---------------------------------------------------------------------------
 
-_COL = 24   # label column width
-_W   = 48   # total line width (inside borders)
+_COL = 26   # label column width
+_W   = 52   # total line width (inside borders)
 
 def _rule(char: str = "=") -> str:
     return char * (_W + 4)
@@ -120,7 +126,7 @@ def _row(label: str, value: str) -> str:
 
 def _section(title: str) -> str:
     pad = (_W - len(title)) // 2
-    return f"\n{'─' * (pad + 2)} {title} {'─' * (_W - pad - len(title)+ 2)}"
+    return f"\n{'─' * (pad + 2)} {title} {'─' * (_W - pad - len(title) + 2)}"
 
 
 # ---------------------------------------------------------------------------
@@ -165,14 +171,20 @@ def main() -> int:
                                      label=labels[2]))
 
     # ── Validate ─────────────────────────────────────────────────────────────
-    errors = validate_multistage(stages, args.v_cell, args.bo_sep, args.oil_frac, units)
+    errors = validate_multistage(
+        stages, args.v_live, args.bo_sep,
+        args.p_recomb, args.t_recomb, args.z_recomb, units,
+    )
     if errors:
         for e in errors:
             print(f"error: {e}", file=sys.stderr)
         return 1
 
     # ── Calculate ────────────────────────────────────────────────────────────
-    res = calculate_multistage(stages, args.v_cell, args.bo_sep, args.oil_frac, units)
+    res = calculate_multistage(
+        stages, args.v_live, args.bo_sep,
+        args.p_recomb, args.t_recomb, args.z_recomb, units,
+    )
 
     # ── Unit labels ──────────────────────────────────────────────────────────
     if units == "field":
@@ -190,21 +202,20 @@ def main() -> int:
         abs(res.GOR_check - res.R_total_input) / res.R_total_input * 100
         if res.R_total_input > 0 else 0.0
     )
-    gor_ok = "✓" if gor_err_pct < 0.1 else "⚠ deviation {:.3f}%".format(gor_err_pct)
+    gor_ok = "✓" if gor_err_pct < 0.1 else "⚠  deviation {:.3f}%".format(gor_err_pct)
 
     # ── Pb estimate ──────────────────────────────────────────────────────────
     pb_line: str | None = None
     if args.api is not None and args.sg_gas is not None:
-        # Pb always computed in field units
         if units == "field":
             R_for_pb = res.R_total_input
             T_for_pb = args.t_res if args.t_res is not None else args.t_sep
         else:
             R_for_pb = res.R_total_input / SCF_STB_TO_CC_CC
             T_for_pb = (
-                (args.t_res * 9/5 + 32.0)
+                (args.t_res * 9 / 5 + 32.0)
                 if args.t_res is not None
-                else (args.t_sep * 9/5 + 32.0)
+                else (args.t_sep * 9 / 5 + 32.0)
             )
         Pb_psia = standing_bubble_point(R_for_pb, args.sg_gas, T_for_pb, args.api)
         if units == "field":
@@ -221,47 +232,54 @@ def main() -> int:
     lines.append("  PVT SEPARATOR RECOMBINATION — RESULTS REPORT")
     lines.append(_rule("="))
 
-    lines.append(_section("CELL SETUP"))
-    lines.append(_row("Cell Volume",    f"{args.v_cell:,.2f} cc"))
-    lines.append(_row("Oil Fraction",   f"{args.oil_frac:.2f}"))
-    lines.append(_row("Bo (separator)", f"{args.bo_sep:.4f} res vol/STO vol"))
-    lines.append(_row("No. of Stages",  str(args.stages)))
-    lines.append(_row("Units",          units))
+    lines.append(_section("SETUP"))
+    lines.append(_row("Live Fluid Volume",  f"{args.v_live:,.2f} cc"))
+    lines.append(_row("Bo (separator)",     f"{args.bo_sep:.4f} res vol/STO vol"))
+    lines.append(_row("No. of Stages",      str(args.stages)))
+    lines.append(_row("Units",              units))
+
+    lines.append(_section("RECOMBINATION CONDITIONS"))
+    lines.append(_row("Pressure",    f"{res.P_recomb_psia:,.2f} psia"))
+    lines.append(_row("Temperature", f"{res.T_recomb_F:.1f} °F"))
+    lines.append(_row("Z-factor",    f"{res.Z_recomb:.4f}"))
 
     for sr in res.stage_results:
         p_in = stages[sr.stage_num - 1].P
         t_in = stages[sr.stage_num - 1].T
         lines.append(_section(f"STAGE {sr.stage_num} — {sr.label}"))
-        lines.append(_row(f"  GOR",              f"{sr.R_input:,.2f} {gor_unit}"))
-        lines.append(_row(f"  Pressure",         f"{p_in:,.2f} {pres_unit}"))
-        lines.append(_row(f"  Temperature",      f"{t_in:,.2f} {temp_unit}"))
-        lines.append(_row(f"  Z-factor",         f"{sr.Z:.4f}"))
-        lines.append(_row(f"  Gas @ std cond.",  f"{sr.V_gas_std_cc:,.2f} cc  "
-                                                  f"({sr.V_gas_std_unit:.5f} {gas_unit})"))
-        lines.append(_row(f"  Gas @ stage cond.", f"{sr.V_gas_sep:,.2f} cc"))
-        lines.append(_row(f"  % of total GOR",   f"{sr.pct_of_total:.1f}%"))
+        lines.append(_row("  GOR",                f"{sr.R_input:,.2f} {gor_unit}"))
+        lines.append(_row("  Pressure",           f"{p_in:,.2f} {pres_unit}"))
+        lines.append(_row("  Temperature",        f"{t_in:,.2f} {temp_unit}"))
+        lines.append(_row("  Z-factor",           f"{sr.Z:.4f}"))
+        lines.append(_row("  Gas @ std cond.",    f"{sr.V_gas_std_cc:,.2f} cc  "
+                                                   f"({sr.V_gas_std_unit:.5f} {gas_unit})"))
+        lines.append(_row("  Gas @ sep cond.",    f"{sr.V_gas_sep:,.2f} cc"))
+        lines.append(_row("  Gas @ recomb cond.", f"{sr.V_gas_recomb_cc:,.2f} cc"))
+        lines.append(_row("  % of total GOR",     f"{sr.pct_of_total:.1f}%"))
 
-    lines.append(_section("CHARGES — SUMMARY"))
-    lines.append(_row("Oil to charge",    f"{res.V_oil_sep:,.2f} cc  (separator oil)"))
-    lines.append(_row("STO oil equiv.",   f"{res.V_oil_STO:,.2f} cc"))
-    lines.append(_row("Total gas @ std",  f"{res.total_V_gas_std_cc:,.2f} cc  "
-                                           f"({res.total_V_gas_std_unit:.5f} {gas_unit})"))
+    lines.append(_section("CHARGE VOLUMES"))
+    lines.append(_row("Separator Oil",       f"{res.V_oil_sep:,.2f} cc"))
+    lines.append(_row("STO Oil Equiv.",      f"{res.V_oil_STO:,.2f} cc"))
+    lines.append(_row("Total Gas @ recomb",  f"{res.total_V_gas_recomb_cc:,.2f} cc"))
+    lines.append(_row("Total Gas @ std",     f"{res.total_V_gas_std_cc:,.2f} cc  "
+                                              f"({res.total_V_gas_std_unit:.5f} {gas_unit})"))
     if args.stages > 1:
         for sr in res.stage_results:
-            lines.append(_row(f"  Stage {sr.stage_num} gas @ std",
-                               f"{sr.V_gas_std_cc:,.2f} cc  "
-                               f"({sr.V_gas_std_unit:.5f} {gas_unit})"))
+            lines.append(_row(f"  Stage {sr.stage_num} gas @ recomb",
+                               f"{sr.V_gas_recomb_cc:,.2f} cc"))
+    lines.append(_row("Cylinder Mix Ratio",
+                       f"{res.cylinder_mix_ratio:.4f} cc gas @ recomb / cc sep oil"))
 
     lines.append(_section("VERIFICATION"))
-    lines.append(_row("Total GOR (input)",   f"{res.R_total_input:,.4f} {gor_unit}"))
-    lines.append(_row("GOR back-calculated", f"{res.GOR_check:,.4f} {gor_unit}  {gor_ok}"))
-    lines.append(_row("GOR match error",     f"{gor_err_pct:.5f} %"))
+    lines.append(_row("Total GOR (input)",    f"{res.R_total_input:,.4f} {gor_unit}"))
+    lines.append(_row("GOR back-calculated",  f"{res.GOR_check:,.4f} {gor_unit}  {gor_ok}"))
+    lines.append(_row("GOR match error",      f"{gor_err_pct:.5f} %"))
 
     if pb_line:
         lines.append(_section("BUBBLE POINT ESTIMATE"))
-        lines.append(_row("Est. Bubble Point", pb_line))
-        lines.append(_row("  API gravity",     f"{args.api:.1f} °API"))
-        lines.append(_row("  Gas SG (γg)",     f"{args.sg_gas:.3f}"))
+        lines.append(_row("Est. Bubble Point",  pb_line))
+        lines.append(_row("  API gravity",      f"{args.api:.1f} °API"))
+        lines.append(_row("  Gas SG (γg)",      f"{args.sg_gas:.3f}"))
         lines.append(_row("  Temperature used", f"{T_for_pb:.1f} °F"))
 
     lines.append("")
