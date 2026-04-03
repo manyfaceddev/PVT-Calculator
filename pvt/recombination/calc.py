@@ -3,6 +3,25 @@ pvt/recombination/calc.py — Core calculation logic for separator recombination
 
 All inputs and outputs are in the units stated in the model docstrings.
 No UI or I/O logic here.
+
+Two oil-source cases are supported:
+  Case 1 — "separator": oil charged from the separator (Bo_sep corrects to STO).
+  Case 2 — "stock_tank": oil charged directly from the stock tank (STO, fully
+            degassed). The stock tank GOR (R_STO) is added to the separator GOR
+            to account for gas that flashed from the separator oil on its way to
+            the stock tank.  All gas (separator + STO flash) is assumed to come
+            from the separator gas cylinder (the common lab simplification).
+
+For both cases the technician charges oil at a lower "oil charging pressure"
+(P_charge_oil) and room temperature, then pumps gas in to reach P_recomb.
+Oil is slightly compressible, so the charging volume at P_charge differs
+from the volume the oil occupies at P_recomb.  The correction uses the
+isothermal oil compressibility c_o (default 10 × 10⁻⁶ psi⁻¹):
+
+    V_oil_charge = V_oil_at_recomb × [1 + c_o × (P_recomb − P_charge)]
+
+Because P_charge < P_recomb the oil is at lower pressure when charged and
+therefore occupies a slightly LARGER volume than it will at final conditions.
 """
 
 from pvt.constants import (
@@ -79,30 +98,57 @@ def calculate(inp: RecombinationInputs) -> RecombinationResults:
 # ===========================================================================
 
 def calculate_multistage(
-    stages:   list[SeparatorStage],
-    V_live:   float,
-    Bo_sep:   float,
-    P_recomb: float,
-    T_recomb: float,
-    Z_recomb: float,
-    units:    str,
+    stages:       list[SeparatorStage],
+    V_live:       float,
+    Bo_sep:       float,
+    P_recomb:     float,
+    T_recomb:     float,
+    Z_recomb:     float,
+    units:        str,
+    oil_source:   str   = "separator",  # "separator" | "stock_tank"
+    R_STO:        float = 0.0,          # stock tank GOR (input units); Case 2 only
+    P_charge_oil: float = 2014.7,       # absolute oil charging pressure (same units as P_recomb)
+    c_o:          float = 10.0e-6,      # oil isothermal compressibility (psi⁻¹)
 ) -> MultiStageResults:
     """
     Multi-stage separator recombination with explicit recombination conditions.
 
+    Case 1 — oil_source="separator"
+    --------------------------------
     The separator oil is charged from the final (lowest-pressure) stage.
     Gas from each stage contributes its portion of the total GOR.
-    The cylinder mix ratio is calculated at recombination P & T — the actual
-    cell-charging conditions, which differ from separator conditions.
+    Bo_sep converts separator oil volume to STO equivalent.
+
+    Case 2 — oil_source="stock_tank"
+    ---------------------------------
+    Stock tank oil (STO, fully degassed) is the oil source.  Bo_sep is set to
+    1.0 internally (the STO is the volume reference; no FVF correction needed).
+    R_STO is the gas/oil ratio of gas that flashed from the separator oil as it
+    travelled from the last separator to the stock tank.  All gas (separator
+    stages + STO flash) is treated as coming from the separator gas cylinder
+    (the standard lab simplification).
+
+    Charging pressure correction (both cases)
+    ------------------------------------------
+    The technician fills the cell with oil at P_charge_oil (lower pressure) and
+    room temperature.  At this lower pressure the oil is slightly less
+    compressed than at P_recomb, so the charging volume is:
+
+        V_oil_charge = V_oil_sep × [1 + c_o × (P_recomb − P_charge)]
+
+    This is slightly LARGER than V_oil_sep when P_charge < P_recomb.
 
     Steps
     -----
-    1. Convert recombination P, T to internal units.
+    1. Convert recombination and charging P, T to internal units.
     2. factor_recomb = cc gas @ recomb per cc gas @ std.
-    3. cylinder_mix_ratio = R_total_cc × factor_recomb / Bo_sep
-    4. V_oil_sep = V_live / (1 + cylinder_mix_ratio)
+    3. Total effective R_cc = Σ(sep stage R_cc) + R_STO_cc [Case 2 adds STO term].
+    4. cylinder_mix_ratio = R_total_eff_cc × factor_recomb / Bo_sep_eff.
+    5. V_oil_sep = V_live / (1 + cylinder_mix_ratio)
        → guarantees V_oil_sep + V_gas_recomb_total = V_live exactly.
-    5. Per stage: compute gas volumes at std, separator, and recomb conditions.
+    6. V_oil_charge = V_oil_sep × (1 + c_o × ΔP).
+    7. Per-stage: compute gas volumes at std, separator, and recomb conditions.
+    8. STO flash gas volumes [Case 2]: computed at last-stage separator conditions.
     """
     # ── Recombination conditions → internal units ────────────────────────────
     if units == "field":
@@ -117,8 +163,21 @@ def calculate_multistage(
     # cc gas @ recomb per cc gas @ standard conditions
     factor_recomb = (P_STD_PSIA / P_recomb_psia) * (T_recomb_R / T_STD_R) * Z_recomb
 
-    # ── First pass: per-stage unit conversions + total R_cc ─────────────────
-    stage_raw: list[tuple] = []
+    # ── Oil charging pressure → psia ─────────────────────────────────────────
+    if units == "field":
+        P_charge_psia = P_charge_oil
+    else:
+        P_charge_psia = P_charge_oil * BARA_TO_PSIA
+
+    # ── Stock tank GOR (Case 2) → cc/cc ──────────────────────────────────────
+    if oil_source == "stock_tank":
+        R_STO_cc = R_STO * SCF_STB_TO_CC_CC if units == "field" else R_STO
+    else:
+        R_STO_cc = 0.0
+        R_STO    = 0.0
+
+    # ── First pass: per-stage unit conversions + total separator R_cc ────────
+    stage_raw: list[tuple] = []   # (i, stage, P_psia, T_F, T_R, R_cc)
     total_R_cc = 0.0
 
     for i, stage in enumerate(stages, 1):
@@ -136,12 +195,34 @@ def calculate_multistage(
         total_R_cc += R_cc
         stage_raw.append((i, stage, P_psia, T_F, T_R, R_cc))
 
-    # ── Oil volumes (live-fluid-volume driven) ───────────────────────────────
-    cylinder_mix_ratio = total_R_cc * factor_recomb / Bo_sep
-    V_oil_sep          = V_live / (1.0 + cylinder_mix_ratio)
-    V_oil_STO          = V_oil_sep / Bo_sep
+    # ── Effective total R (separator stages + STO flash for Case 2) ───────────
+    total_R_cc_eff = total_R_cc + R_STO_cc
 
-    # ── Per-stage gas volumes ────────────────────────────────────────────────
+    # ── Bo correction ─────────────────────────────────────────────────────────
+    # Case 1: Bo_sep converts separator oil volume → STO equivalent.
+    # Case 2: STO is already the volume reference; no FVF correction needed.
+    Bo_sep_eff = Bo_sep if oil_source == "separator" else 1.0
+
+    # ── Oil volumes (live-fluid-volume driven) ────────────────────────────────
+    cylinder_mix_ratio = total_R_cc_eff * factor_recomb / Bo_sep_eff
+    V_oil_sep          = V_live / (1.0 + cylinder_mix_ratio)
+    V_oil_STO          = V_oil_sep / Bo_sep_eff
+
+    # ── Oil charging volume (compressibility correction) ──────────────────────
+    # At P_charge < P_recomb the oil is at lower pressure and occupies a
+    # slightly LARGER volume.  This is what the technician actually measures.
+    delta_P      = P_recomb_psia - P_charge_psia
+    V_oil_charge = V_oil_sep * (1.0 + c_o * delta_P)
+
+    # ── Shrinkage factor (Case 2 informational) ───────────────────────────────
+    # Defined per user convention: R_sep_total × SF = R_STO  →  SF = R_STO / R_sep
+    shrinkage_factor = (
+        R_STO_cc / total_R_cc
+        if (oil_source == "stock_tank" and total_R_cc > 0)
+        else 0.0
+    )
+
+    # ── Per-stage separator gas volumes ───────────────────────────────────────
     stage_results: list[StageResult] = []
 
     for (i, stage, P_psia, T_F, T_R, R_cc) in stage_raw:
@@ -169,13 +250,41 @@ def calculate_multistage(
             pct_of_total=0.0,   # filled below
         ))
 
+    # pct_of_total uses effective total (including STO flash) as denominator
     for sr in stage_results:
-        sr.pct_of_total = (sr.R_cc / total_R_cc * 100.0) if total_R_cc > 0 else 0.0
+        sr.pct_of_total = (
+            sr.R_cc / total_R_cc_eff * 100.0
+            if total_R_cc_eff > 0 else 0.0
+        )
 
     total_V_gas_std_cc    = sum(sr.V_gas_std_cc    for sr in stage_results)
     total_V_gas_std_unit  = sum(sr.V_gas_std_unit  for sr in stage_results)
     total_V_gas_recomb_cc = sum(sr.V_gas_recomb_cc for sr in stage_results)
 
+    # ── STO flash gas volumes (Case 2 only) ───────────────────────────────────
+    # Treated as separator gas for cylinder volume calculations (lab convention).
+    # Computed at last separator stage conditions (closest to stock tank P, T).
+    if oil_source == "stock_tank" and R_STO_cc > 0:
+        last_i, last_stage, last_P_psia, last_T_F, last_T_R, _ = stage_raw[-1]
+        V_STO_gas_std_cc    = R_STO_cc * V_oil_STO
+        V_STO_gas_std_unit  = (
+            V_STO_gas_std_cc / SCF_TO_CC if units == "field"
+            else V_STO_gas_std_cc * CC_TO_SM3
+        )
+        V_STO_gas_recomb_cc = V_STO_gas_std_cc * factor_recomb
+
+        # Add STO flash gas to the running totals (all goes into the cell)
+        total_V_gas_std_cc    += V_STO_gas_std_cc
+        total_V_gas_std_unit  += V_STO_gas_std_unit
+        total_V_gas_recomb_cc += V_STO_gas_recomb_cc
+    else:
+        V_STO_gas_std_cc    = 0.0
+        V_STO_gas_std_unit  = 0.0
+        V_STO_gas_recomb_cc = 0.0
+
+    # ── GOR summary ───────────────────────────────────────────────────────────
+    # R_total_input / R_total_cc reflect separator stages only.
+    # GOR_check back-calculates from ALL gas in the cell (sep + STO flash).
     if units == "field":
         R_total_input = total_R_cc / SCF_STB_TO_CC_CC
         GOR_check     = (
@@ -202,5 +311,15 @@ def calculate_multistage(
         T_recomb_F=T_recomb_F,
         T_recomb_R=T_recomb_R,
         Z_recomb=Z_recomb,
+        oil_source=oil_source,
+        P_charge_oil_psia=P_charge_psia,
+        V_oil_charge=V_oil_charge,
+        c_o=c_o,
+        R_STO_input=R_STO,
+        R_STO_cc=R_STO_cc,
+        shrinkage_factor=shrinkage_factor,
+        V_STO_gas_std_cc=V_STO_gas_std_cc,
+        V_STO_gas_std_unit=V_STO_gas_std_unit,
+        V_STO_gas_recomb_cc=V_STO_gas_recomb_cc,
         units=units,
     )
