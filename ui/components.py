@@ -8,7 +8,7 @@ Keeping HTML construction here keeps page modules clean and makes styling
 changes easy to locate.
 """
 
-from pvt.recombination.models import MultiStageResults, StageResult
+from pvt.recombination.models import MultiStageResults, StageResult, SeparatorStage
 
 
 # ===========================================================================
@@ -29,17 +29,177 @@ def section_label(text: str) -> str:
 
 
 # ===========================================================================
+# Process diagram — well → separator → (stock tank) → cell
+# ===========================================================================
+
+def process_diagram(
+    oil_source:  str,
+    n_stages:    int,
+    stage_labels: list[str],
+    stages:      list,       # list[SeparatorStage]
+    units:       str,
+    pres_unit:   str,
+    temp_unit:   str,
+) -> str:
+    """
+    Render a process-flow schematic for Case 1 or Case 2.
+
+    Case 1 — Separator Oil + Separator Gas:
+      Oil well at reservoir P, T → Separator(s) → oil out the bottom (to cell)
+                                               → gas out the top (to gas cylinder, then cell)
+
+    Case 2 — Stock Tank Oil + Separator Gas:
+      Oil well at reservoir P, T → Separator(s) → gas out the top (to gas cylinder, then cell)
+                                               → oil out the bottom → Stock Tank
+                                                 (pressure drop: more gas flashes, oil shrinks)
+                                                 → STO out the bottom (to cell)
+    """
+    # Build separator label(s)
+    sep_lines = []
+    for i, (label, stage) in enumerate(zip(stage_labels, stages)):
+        P_lbl = f"{stage.P:.0f} {pres_unit}"
+        T_lbl = f"{stage.T:.0f} {temp_unit}"
+        sep_lines.append(f"{label}: {P_lbl} / {T_lbl} / Z={stage.Z:.3f} / GOR={stage.R:.0f}")
+    sep_text = "<br>".join(sep_lines)
+
+    # ── Shared node styles ────────────────────────────────────────────────────
+    node = (
+        'display:inline-block;padding:6px 10px;border-radius:6px;'
+        'font-size:0.78rem;font-weight:600;line-height:1.4;text-align:center;'
+    )
+    well_style  = node + 'background:#0a3d62;color:#fff;min-width:100px;'
+    sep_style   = node + 'background:#1a6dad;color:#fff;min-width:140px;'
+    tank_style  = node + 'background:#4a6080;color:#fff;min-width:110px;'
+    cell_style  = node + 'background:#155724;color:#fff;min-width:120px;'
+    gas_style   = node + 'background:#7c5200;color:#fff;min-width:110px;'
+    arrow       = '<span style="font-size:1rem;color:#4a6080;margin:0 4px;">→</span>'
+    arrow_down  = '<div style="font-size:0.85rem;color:#4a6080;text-align:center;line-height:1;">↓</div>'
+    arrow_up    = '<div style="font-size:0.85rem;color:#7c5200;text-align:center;line-height:1;">↑</div>'
+    # ── Well node ─────────────────────────────────────────────────────────────
+    well_node = f'<span style="{well_style}">🛢️ Oil Well<br><span style="font-weight:400;font-size:0.72rem;">Reservoir P, T</span></span>'
+
+    # ── Separator node ────────────────────────────────────────────────────────
+    sep_node = (
+        f'<span style="{sep_style}">⚙️ Separator(s)<br>'
+        f'<span style="font-weight:400;font-size:0.68rem;">{sep_text}</span></span>'
+    )
+
+    # ── Gas cylinder node ─────────────────────────────────────────────────────
+    gas_node = f'<span style="{gas_style}">🔵 Gas Cylinder<br><span style="font-weight:400;font-size:0.72rem;">Sep. gas</span></span>'
+
+    # ── Cell node ─────────────────────────────────────────────────────────────
+    cell_node = f'<span style="{cell_style}">⚗️ PVT Cell<br><span style="font-weight:400;font-size:0.72rem;">Oil + Gas</span></span>'
+
+    if oil_source == "separator":
+        # Case 1: sep oil → directly to cell; sep gas → gas cylinder → cell
+        oil_label = "Sep. oil (bottom)"
+        gas_label = "Sep. gas (top)"
+        diagram_html = (
+            f'<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px;">'
+            f'{well_node}{arrow}{sep_node}'
+            f'</div>'
+            f'<div style="display:flex;align-items:flex-start;flex-wrap:wrap;gap:16px;margin-top:4px;">'
+            # Gas arm
+            f'<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">'
+            f'<span style="font-size:0.68rem;color:#7c5200;">⬆ {gas_label}</span>'
+            f'{arrow_up}'
+            f'{gas_node}'
+            f'<span style="font-size:0.68rem;color:#7c5200;">⬇ charged to cell</span>'
+            f'{arrow_down}'
+            f'</div>'
+            # Oil arm
+            f'<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">'
+            f'<span style="font-size:0.68rem;color:#1a6dad;">⬇ {oil_label}</span>'
+            f'{arrow_down}'
+            f'</div>'
+            # Cell
+            f'<div style="display:flex;align-items:center;gap:4px;align-self:center;">'
+            f'{arrow}{cell_node}'
+            f'</div>'
+            f'</div>'
+        )
+        case_badge = (
+            '<span style="background:#e8f4fd;border:1px solid #1a6dad;color:#0a3d62;'
+            'padding:2px 8px;border-radius:4px;font-size:0.72rem;font-weight:600;">'
+            'Case 1 — Separator Oil + Separator Gas</span>'
+        )
+        note = (
+            'Separator oil (from the bottom of the separator) is charged to the PVT cell. '
+            'Separator gas (from the top of the separator) is collected in a cylinder and pumped into the cell. '
+            'Bo at separator conditions corrects for the difference between separator and stock-tank oil volumes.'
+        )
+    else:
+        # Case 2: sep oil → stock tank (shrinkage + STO gas) → STO oil to cell; sep gas → cylinder → cell
+        tank_node = (
+            f'<span style="{tank_style}">🏭 Stock Tank<br>'
+            f'<span style="font-weight:400;font-size:0.72rem;">P_atm · shrinkage<br>STO gas vented ↑</span></span>'
+        )
+        diagram_html = (
+            f'<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px;">'
+            f'{well_node}{arrow}{sep_node}'
+            f'</div>'
+            f'<div style="display:flex;align-items:flex-start;flex-wrap:wrap;gap:16px;margin-top:4px;">'
+            # Gas arm
+            f'<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">'
+            f'<span style="font-size:0.68rem;color:#7c5200;">⬆ Sep. gas (top)</span>'
+            f'{arrow_up}'
+            f'{gas_node}'
+            f'<span style="font-size:0.68rem;color:#7c5200;">⬇ all gas to cell</span>'
+            f'{arrow_down}'
+            f'</div>'
+            # Oil → stock tank → STO arm
+            f'<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">'
+            f'<span style="font-size:0.68rem;color:#4a6080;">⬇ Sep. oil (bottom)</span>'
+            f'{arrow_down}'
+            f'{tank_node}'
+            f'<span style="font-size:0.68rem;color:#4a6080;">⬇ STO oil (to cell)</span>'
+            f'{arrow_down}'
+            f'</div>'
+            # Cell
+            f'<div style="display:flex;align-items:center;gap:4px;align-self:center;">'
+            f'{arrow}{cell_node}'
+            f'</div>'
+            f'</div>'
+        )
+        case_badge = (
+            '<span style="background:#fff3e0;border:1px solid #7c5200;color:#7c5200;'
+            'padding:2px 8px;border-radius:4px;font-size:0.72rem;font-weight:600;">'
+            'Case 2 — Stock Tank Oil + Separator Gas</span>'
+        )
+        note = (
+            'Separator gas (top of separator) is collected and used as the only gas source for the PVT cell. '
+            'Separator oil (bottom of separator) flows to the stock tank at atmospheric pressure: '
+            'in this pressure drop the oil further shrinks and releases additional gas (stock tank gas / STO gas), '
+            'which is vented or collected separately. '
+            'The remaining fully-degassed stock tank oil (STO) is charged to the PVT cell. '
+            'Both the separator GOR and the stock tank GOR are accounted for in the total gas charged.'
+        )
+
+    return (
+        f'<div style="background:#f0f4f8;border:1px solid #c8d8e8;border-radius:8px;'
+        f'padding:12px 16px;margin-bottom:12px;">'
+        f'<div style="margin-bottom:8px;">{case_badge}</div>'
+        f'<div style="margin-bottom:10px;">{diagram_html}</div>'
+        f'<div style="font-size:0.75rem;color:#4a6080;line-height:1.5;border-top:1px solid #d0dcea;'
+        f'padding-top:6px;">{note}</div>'
+        f'</div>'
+    )
+
+
+# ===========================================================================
 # Hero card (charge instructions)
 # ===========================================================================
 
 def hero_card(
-    res:        MultiStageResults,
-    v_live:     float,
-    n_stages:   int,
-    stage_labels: list[str],
-    gor_unit:   str,
-    gas_unit:   str,
-    gor_err_pct: float,
+    res:               MultiStageResults,
+    v_live:            float,
+    n_stages:          int,
+    stage_labels:      list[str],
+    gor_unit:          str,
+    gas_unit:          str,
+    gor_err_pct:       float,
+    R_total_eff_input: float,
+    pres_unit:         str,
 ) -> str:
     """Full charge-instructions hero card."""
     gor_check_str = (
@@ -48,23 +208,43 @@ def hero_card(
         else f"{res.GOR_check:.1f} {gor_unit} ⚠"
     )
 
-    # Per-stage gas rows
+    oil_label = "STO oil" if res.oil_source == "stock_tank" else "separator oil"
+
+    # Per-stage gas rows (separator stages)
     gas_rows = ""
     for sr in res.stage_results:
-        pct = f" ({sr.pct_of_total:.0f}% of GOR)" if n_stages > 1 else ""
+        pct = f" ({sr.pct_of_total:.0f}% of total GOR)" if (n_stages > 1 or res.oil_source == "stock_tank") else ""
         gas_rows += (
             f'<div class="charge-row"><div>'
             f'<span class="charge-val">{sr.V_gas_recomb_cc:,.1f}</span>'
-            f'<span class="charge-unit">cc gas @ recomb</span>'
+            f'<span class="charge-unit">cc sep gas @ recomb</span>'
             f'<div class="charge-label">Stage {sr.stage_num} ({sr.label})'
             f' · {sr.V_gas_std_cc:,.1f} cc @ std'
             f' · {sr.V_gas_std_unit:.4f} {gas_unit}{pct}</div>'
             f'</div></div>'
         )
 
-    # Total gas row (multi-stage only)
+    # STO flash gas row (Case 2 only)
+    sto_gas_row = ""
+    if res.oil_source == "stock_tank" and res.R_STO_cc > 0:
+        sto_pct = (
+            res.R_STO_cc / (res.R_total_cc + res.R_STO_cc) * 100.0
+            if (res.R_total_cc + res.R_STO_cc) > 0 else 0.0
+        )
+        sto_gas_row = (
+            f'<div class="charge-row"><div>'
+            f'<span class="charge-val">{res.V_STO_gas_recomb_cc:,.1f}</span>'
+            f'<span class="charge-unit">cc STO flash gas @ recomb</span>'
+            f'<div class="charge-label">Stock tank flash · {res.V_STO_gas_std_cc:,.1f} cc @ std'
+            f' · {res.V_STO_gas_std_unit:.4f} {gas_unit}'
+            f' · ({sto_pct:.0f}% of total GOR)'
+            f'<br><em style="font-size:0.72rem;color:#6a7f96;">Charged as separator gas (lab convention)</em></div>'
+            f'</div></div>'
+        )
+
+    # Total gas row (multi-stage or Case 2)
     total_gas_row = ""
-    if n_stages > 1:
+    if n_stages > 1 or (res.oil_source == "stock_tank" and res.R_STO_cc > 0):
         total_gas_row = (
             f'<hr class="hero-divider">'
             f'<div class="charge-row"><div>'
@@ -77,31 +257,65 @@ def hero_card(
 
     oil_pct = 100.0 / (1.0 + res.cylinder_mix_ratio)
 
+    # Oil charge rows — show both target (at P_recomb) and actual charge (at P_charge)
+    charge_diff_pct = (res.V_oil_charge / res.V_oil_sep - 1.0) * 100.0 if res.V_oil_sep > 0 else 0.0
+    direction = "larger" if charge_diff_pct > 0 else "smaller"
+
+    oil_row = (
+        # Primary row: what to physically charge at P_charge
+        f'<div class="charge-row"><div>'
+        f'<span class="charge-val" style="color:#0a6640;">{res.V_oil_charge:,.1f}</span>'
+        f'<span class="charge-unit">cc {oil_label}</span>'
+        f'<div class="charge-label" style="color:#0a6640;font-weight:600;">'
+        f'⭐ CHARGE at {res.P_charge_oil_psia:.0f} {pres_unit} (oil charging pressure)'
+        f' · ({oil_pct:.1f}% of live fluid at P_recomb)</div>'
+        f'</div></div>'
+        # Secondary row: what the oil will occupy at P_recomb
+        f'<div class="charge-row" style="opacity:0.75;"><div>'
+        f'<span class="charge-val" style="font-size:1.2rem;">{res.V_oil_sep:,.1f}</span>'
+        f'<span class="charge-unit">cc {oil_label} @ P_recomb</span>'
+        f'<div class="charge-label">Oil occupies this volume at final recomb conditions'
+        f' · charging volume is {abs(charge_diff_pct):.2f}% {direction} due to compressibility</div>'
+        f'</div></div>'
+    )
+
+    # Case 2 shrinkage info
+    sto_info = ""
+    if res.oil_source == "stock_tank" and res.shrinkage_factor > 0:
+        sto_info = (
+            f'<div style="background:#fff8e1;border-left:3px solid #f9a825;'
+            f'padding:6px 10px;margin:6px 0;border-radius:0 4px 4px 0;font-size:0.78rem;color:#6d4c00;">'
+            f'<strong>Shrinkage factor</strong> SF = R_STO / R_sep = '
+            f'{res.R_STO_input:.1f} / {res.R_total_input:.1f} {gor_unit} = <strong>{res.shrinkage_factor:.4f}</strong>'
+            f'&nbsp;·&nbsp;R_sep × SF = R_STO confirms: '
+            f'{res.R_total_input:.1f} × {res.shrinkage_factor:.4f} = {res.R_total_input * res.shrinkage_factor:.1f}'
+            f'</div>'
+        )
+
     return (
         f'<div class="pvt-hero">'
         f'<div class="hero-title">⚗️ Charge Instructions'
         f' — {v_live:.0f} cc live fluid'
-        f' @ {res.T_recomb_F:.0f}°F / {res.P_recomb_psia:.0f} psia</div>'
-        f'<div class="charge-row"><div>'
-        f'<span class="charge-val">{res.V_oil_sep:,.1f}</span>'
-        f'<span class="charge-unit">cc oil</span>'
-        f'<div class="charge-label">Separator oil · {stage_labels[-1]}'
-        f' · ({oil_pct:.1f}% of live fluid)</div>'
-        f'</div></div>'
+        f' @ {res.T_recomb_F:.0f}°F / {res.P_recomb_psia:.0f} {pres_unit}</div>'
+        f'{sto_info}'
+        f'{oil_row}'
         f'<hr class="hero-divider">'
         f'{gas_rows}'
+        f'{sto_gas_row}'
         f'{total_gas_row}'
         f'<hr class="hero-divider">'
         f'<div class="charge-row"><div>'
         f'<span class="charge-val">{res.cylinder_mix_ratio:.4f}</span>'
         f'<span class="charge-unit">cc/cc</span>'
         f'<div class="charge-label">Cylinder mix ratio'
-        f' — cc gas @ recomb P&amp;T per cc separator oil</div>'
+        f' — cc gas @ recomb P&amp;T per cc {oil_label}</div>'
         f'</div></div>'
         f'<hr class="hero-divider">'
         f'<div class="hero-sub">'
-        f'GOR: {res.R_total_input:.1f} {gor_unit} &nbsp;·&nbsp;'
-        f'Recomb: {res.P_recomb_psia:.0f} psia / {res.T_recomb_F:.0f}°F'
+        f'Total GOR: {R_total_eff_input:.1f} {gor_unit}'
+        + (f' (sep: {res.R_total_input:.1f} + STO: {res.R_STO_input:.1f})' if res.oil_source == "stock_tank" else '')
+        + f' &nbsp;·&nbsp;'
+        f'Recomb: {res.P_recomb_psia:.0f} {pres_unit} / {res.T_recomb_F:.0f}°F'
         f' / Z={res.Z_recomb:.3f} &nbsp;·&nbsp;'
         f'GOR check: {gor_check_str}'
         f'</div>'
@@ -125,12 +339,14 @@ def metric_card(value: str, unit: str, label: str, accent: bool = False) -> str:
 
 
 def metric_cards_row(res: MultiStageResults, gor_unit: str, pb_html: str = "") -> str:
+    oil_label = "STO Oil to Charge" if res.oil_source == "stock_tank" else "Oil to Charge"
     cards = (
-        metric_card(f"{res.V_oil_sep:,.1f}",            "cc oil",        "Oil to Charge",   accent=True)
-        + metric_card(f"{res.total_V_gas_recomb_cc:,.1f}", "cc @ recomb", "Gas to Charge",   accent=True)
-        + metric_card(f"{res.cylinder_mix_ratio:.4f}",   "cc/cc",         "Mix Ratio")
-        + metric_card(f"{res.total_V_gas_std_cc:,.1f}",  "cc @ std",      "Gas @ Std")
-        + metric_card(f"{res.R_total_input:,.1f}",        gor_unit,        "Total GOR")
+        metric_card(f"{res.V_oil_charge:,.1f}",            "cc @ charge P",  oil_label,           accent=True)
+        + metric_card(f"{res.total_V_gas_recomb_cc:,.1f}", "cc @ recomb",    "Gas to Charge",      accent=True)
+        + metric_card(f"{res.cylinder_mix_ratio:.4f}",     "cc/cc",          "Mix Ratio")
+        + metric_card(f"{res.total_V_gas_std_cc:,.1f}",   "cc @ std",       "Total Gas @ Std")
+        + metric_card(f"{res.R_total_input:,.1f}",         gor_unit,         "Sep. Stage GOR")
+        + (metric_card(f"{res.R_STO_input:,.1f}", gor_unit, "STO GOR") if res.oil_source == "stock_tank" else "")
         + pb_html
     )
     return f'<div class="pvt-card-row">{cards}</div>'
@@ -176,19 +392,20 @@ def bubble_point_metric_card(Pb_disp: float, Pb_unit: str) -> str:
 # ===========================================================================
 
 def stage_card(
-    sr:         StageResult,
-    P_input:    float,
-    T_input:    float,
-    pres_unit:  str,
-    temp_unit:  str,
-    gor_unit:   str,
-    gas_unit:   str,
-    n_stages:   int,
+    sr:              StageResult,
+    P_input:         float,
+    T_input:         float,
+    pres_unit:       str,
+    temp_unit:       str,
+    gor_unit:        str,
+    gas_unit:        str,
+    n_stages:        int,
+    R_total_eff_cc:  float = 0.0,
 ) -> str:
     pct_str = (
         f'&nbsp;<span style="font-weight:400;color:#4a6080;font-size:0.8rem;">'
-        f'({sr.pct_of_total:.1f}% of GOR)</span>'
-        if n_stages > 1 else ""
+        f'({sr.pct_of_total:.1f}% of total GOR)</span>'
+        if R_total_eff_cc > 0 else ""
     )
     return (
         f'<div class="stage-card">'
@@ -206,6 +423,38 @@ def stage_card(
         f'<div class="sc-row"><span class="sc-lbl">Gas @ recomb cond.</span>'
         f'<span class="sc-val" style="color:#1a6dad;font-size:1rem;">'
         f'{sr.V_gas_recomb_cc:,.2f} cc</span></div>'
+        f'</div>'
+    )
+
+
+# ===========================================================================
+# Stock tank flash gas card (Case 2)
+# ===========================================================================
+
+def sto_gas_card(res: MultiStageResults, gor_unit: str, gas_unit: str) -> str:
+    sto_pct = (
+        res.R_STO_cc / (res.R_total_cc + res.R_STO_cc) * 100.0
+        if (res.R_total_cc + res.R_STO_cc) > 0 else 0.0
+    )
+    return (
+        f'<div class="stage-card" style="border-left-color:#f9a825;">'
+        f'<div class="sc-title">Stock Tank Flash — STO Gas'
+        f'&nbsp;<span style="font-weight:400;color:#4a6080;font-size:0.8rem;">'
+        f'({sto_pct:.1f}% of total GOR)</span></div>'
+        f'<div class="sc-row"><span class="sc-lbl">Stock Tank GOR</span>'
+        f'<span class="sc-val">{res.R_STO_input:.1f} {gor_unit}</span></div>'
+        f'<div class="sc-row"><span class="sc-lbl">Shrinkage factor SF</span>'
+        f'<span class="sc-val">{res.shrinkage_factor:.4f}'
+        f'&nbsp;<span style="font-size:0.75rem;color:#6a7f96;">(R_STO / R_sep)</span></span></div>'
+        f'<div class="sc-row"><span class="sc-lbl">Gas @ std cond.</span>'
+        f'<span class="sc-val">{res.V_STO_gas_std_cc:,.2f} cc'
+        f' &nbsp;({res.V_STO_gas_std_unit:.5f} {gas_unit})</span></div>'
+        f'<div class="sc-row"><span class="sc-lbl">Gas @ recomb cond.</span>'
+        f'<span class="sc-val" style="color:#f9a825;font-size:1rem;">'
+        f'{res.V_STO_gas_recomb_cc:,.2f} cc</span></div>'
+        f'<div class="sc-row" style="font-size:0.73rem;color:#6a7f96;">'
+        f'<span class="sc-lbl">Note</span>'
+        f'<span class="sc-val">Charged as separator gas (lab convention)</span></div>'
         f'</div>'
     )
 
@@ -240,29 +489,33 @@ def _tsect(title: str) -> str:
 
 
 def lab_report_table(
-    res:         MultiStageResults,
-    stages:      list,
-    v_live:      float,
-    bo_sep:      float,
-    n_stages:    int,
-    gor_unit:    str,
-    pres_unit:   str,
-    temp_unit:   str,
-    gas_unit:    str,
-    gor_err_pct: float,
-    show_pb:     bool = False,
-    Pb_disp:     float = 0.0,
-    Pb_lo:       float = 0.0,
-    Pb_hi:       float = 0.0,
-    Pb_unit:     str = "",
-    gamma_g:     float = 0.0,
-    api_gravity: float = 0.0,
-    T_for_pb:    float = 0.0,
+    res:               MultiStageResults,
+    stages:            list,
+    v_live:            float,
+    bo_sep:            float,
+    n_stages:          int,
+    gor_unit:          str,
+    pres_unit:         str,
+    temp_unit:         str,
+    gas_unit:          str,
+    gor_err_pct:       float,
+    R_total_eff_input: float = 0.0,
+    c_o_x1e6:         float = 10.0,
+    show_pb:           bool  = False,
+    Pb_disp:           float = 0.0,
+    Pb_lo:             float = 0.0,
+    Pb_hi:             float = 0.0,
+    Pb_unit:           str   = "",
+    gamma_g:           float = 0.0,
+    api_gravity:       float = 0.0,
+    T_for_pb:          float = 0.0,
 ) -> str:
     rows = ""
+
     rows += _tsect("SETUP")
+    rows += _trow("Oil Source",        "Separator Oil" if res.oil_source == "separator" else "Stock Tank Oil (STO)")
     rows += _trow("Live Fluid Volume", f"{v_live:.2f}",  "cc")
-    rows += _trow("Bo (separator)",    f"{bo_sep:.4f}",  "res/STO")
+    rows += _trow("Bo (separator)",    f"{bo_sep:.4f}",  "res/STO" if res.oil_source == "separator" else "= 1.0 (STO reference)")
     rows += _trow("Stages",            str(n_stages))
     rows += _trow("Units",             res.units)
 
@@ -274,6 +527,13 @@ def lab_report_table(
     rows += _trow("Pressure",    f"{res.P_recomb_psia:.2f}", "psia")
     rows += _trow("Temperature", f"{res.T_recomb_F:.1f}",    "°F")
     rows += _trow("Z-factor",    f"{res.Z_recomb:.4f}")
+
+    rows += _tsect("OIL CHARGING CONDITIONS")
+    rows += _trow("Oil Charging Pressure",  f"{res.P_charge_oil_psia:.2f}", "psia")
+    rows += _trow("Oil Compressibility c_o", f"{c_o_x1e6:.1f} × 10⁻⁶",    "psi⁻¹")
+    oil_label = "STO Oil" if res.oil_source == "stock_tank" else "Separator Oil"
+    rows += _trow(f"{oil_label} at P_recomb",   f"{res.V_oil_sep:.4f}",    "cc")
+    rows += _trow(f"{oil_label} at P_charge ⭐", f"{res.V_oil_charge:.4f}", "cc  ← charge this amount")
 
     for sr in res.stage_results:
         p_in = stages[sr.stage_num - 1].P
@@ -290,18 +550,31 @@ def lab_report_table(
         rows += _trow("Gas @ recomb",     f"{sr.V_gas_recomb_cc:.4f}", "cc")
         rows += _trow("% of GOR",         f"{sr.pct_of_total:.2f}",    "%")
 
+    if res.oil_source == "stock_tank":
+        rows += _tsect("STOCK TANK FLASH (Case 2)")
+        rows += _trow("Stock Tank GOR",   f"{res.R_STO_input:.2f}",       gor_unit)
+        rows += _trow("Stock Tank GOR",   f"{res.R_STO_cc:.6f}",          "cc/cc")
+        rows += _trow("Shrinkage Factor", f"{res.shrinkage_factor:.6f}",  "R_STO / R_sep")
+        rows += _trow("STO Gas @ std",    f"{res.V_STO_gas_std_cc:.4f}",  "cc")
+        rows += _trow("STO Gas @ std",    f"{res.V_STO_gas_std_unit:.6f}", gas_unit)
+        rows += _trow("STO Gas @ recomb", f"{res.V_STO_gas_recomb_cc:.4f}", "cc")
+
     rows += _tsect("CHARGE VOLUMES")
-    rows += _trow("Separator Oil",      f"{res.V_oil_sep:.4f}",             "cc")
-    rows += _trow("STO Oil Equiv.",     f"{res.V_oil_STO:.4f}",             "cc")
-    rows += _trow("Total Gas @ recomb", f"{res.total_V_gas_recomb_cc:.4f}", "cc")
-    rows += _trow("Total Gas @ std",    f"{res.total_V_gas_std_cc:.4f}",    "cc")
-    rows += _trow("Total Gas @ std",    f"{res.total_V_gas_std_unit:.6f}",  gas_unit)
-    rows += _trow("Cylinder Mix Ratio", f"{res.cylinder_mix_ratio:.6f}",    "cc gas @ recomb / cc oil")
+    rows += _trow(f"{oil_label} at P_recomb", f"{res.V_oil_sep:.4f}",             "cc")
+    rows += _trow(f"{oil_label} at P_charge", f"{res.V_oil_charge:.4f}",          "cc  ← charge this amount")
+    rows += _trow("STO Oil Equiv.",           f"{res.V_oil_STO:.4f}",             "cc")
+    rows += _trow("Total Gas @ recomb",       f"{res.total_V_gas_recomb_cc:.4f}", "cc")
+    rows += _trow("Total Gas @ std",          f"{res.total_V_gas_std_cc:.4f}",    "cc")
+    rows += _trow("Total Gas @ std",          f"{res.total_V_gas_std_unit:.6f}",  gas_unit)
+    rows += _trow("Cylinder Mix Ratio",       f"{res.cylinder_mix_ratio:.6f}",    f"cc gas @ recomb / cc {oil_label.lower()}")
 
     rows += _tsect("VERIFICATION")
-    rows += _trow("GOR (input)",      f"{res.R_total_input:.4f}", gor_unit)
-    rows += _trow("GOR (back-calc.)", f"{res.GOR_check:.4f}",     gor_unit)
-    rows += _trow("GOR match error",  f"{gor_err_pct:.5f}",       "%")
+    rows += _trow("Sep. GOR (input)",       f"{res.R_total_input:.4f}",    gor_unit)
+    if res.oil_source == "stock_tank":
+        rows += _trow("STO GOR (input)",    f"{res.R_STO_input:.4f}",     gor_unit)
+        rows += _trow("Total GOR (eff.)",   f"{R_total_eff_input:.4f}",   gor_unit)
+    rows += _trow("GOR (back-calc.)",       f"{res.GOR_check:.4f}",        gor_unit)
+    rows += _trow("GOR match error",        f"{gor_err_pct:.5f}",          "%")
 
     if show_pb:
         rows += _tsect("BUBBLE POINT (Standing 1947)")
