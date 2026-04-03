@@ -36,7 +36,7 @@ class StageResult:
     T_R:                float   # separator temperature in Rankine (internal)
     T_F:                float   # separator temperature in °F (display)
     Z:                  float
-    pct_of_total:       float   # % of total solution GOR from this stage
+    pct_of_total:       float   # % of total solution GOR (including STO) from this stage
 
 
 @dataclass
@@ -45,24 +45,36 @@ class MultiStageResults:
     # ── Inputs echoed back ───────────────────────────────────────────────────
     V_live:                float   # cc — target live fluid volume
     # ── Oil volumes ──────────────────────────────────────────────────────────
-    V_oil_sep:             float   # cc — separator oil to charge
+    V_oil_sep:             float   # cc — oil to charge at recomb P (sep oil for Case 1, STO for Case 2)
     V_oil_STO:             float   # cc — stock-tank oil equivalent
-    # ── Gas volumes ──────────────────────────────────────────────────────────
+    # ── Gas volumes (separator stages) ───────────────────────────────────────
     stage_results:         list    # list[StageResult]
-    total_V_gas_std_cc:    float   # cc @ std — sum over all stages
-    total_V_gas_std_unit:  float   # scf or sm³ — sum over all stages
-    total_V_gas_recomb_cc: float   # cc @ recombination P & T — sum over all stages
+    total_V_gas_std_cc:    float   # cc @ std — all gas (sep stages + STO flash)
+    total_V_gas_std_unit:  float   # scf or sm³ — all gas
+    total_V_gas_recomb_cc: float   # cc @ recombination P & T — all gas
     # ── GOR summary ──────────────────────────────────────────────────────────
-    R_total_input:         float   # total GOR in input units
-    R_total_cc:            float   # total GOR in cc/cc
+    R_total_input:         float   # total separator-stage GOR in input units
+    R_total_cc:            float   # total separator-stage GOR in cc/cc
     GOR_check:             float   # back-calculated GOR (input units) — for verification
     # ── Cylinder mix ratio ───────────────────────────────────────────────────
-    cylinder_mix_ratio:    float   # cc gas @ recomb P&T per cc separator oil
+    cylinder_mix_ratio:    float   # cc gas @ recomb P&T per cc oil
     # ── Recombination conditions ─────────────────────────────────────────────
     P_recomb_psia:         float
     T_recomb_F:            float
     T_recomb_R:            float
     Z_recomb:              float
+    # ── Oil source & charging conditions ─────────────────────────────────────
+    oil_source:            str     # "separator" | "stock_tank"
+    P_charge_oil_psia:     float   # oil charging pressure (psia)
+    V_oil_charge:          float   # oil volume at charging conditions (cc) — what the tech measures
+    c_o:                   float   # oil compressibility used (psi^-1)
+    # ── Stock tank flash (Case 2 only; 0.0 for Case 1) ───────────────────────
+    R_STO_input:           float   # stock tank GOR in input units
+    R_STO_cc:              float   # stock tank GOR in cc/cc
+    shrinkage_factor:      float   # R_STO_cc / R_sep_total_cc (per user convention: R_sep × SF = R_STO)
+    V_STO_gas_std_cc:      float   # STO flash gas @ std conditions (cc)
+    V_STO_gas_std_unit:    float   # STO flash gas @ std (scf or sm³)
+    V_STO_gas_recomb_cc:   float   # STO flash gas @ recomb P&T (cc)
     # ── Metadata ─────────────────────────────────────────────────────────────
     units:                 Units
 
