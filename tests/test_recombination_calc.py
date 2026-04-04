@@ -327,3 +327,88 @@ class TestStageOutputs:
         sr = res.stage_results[0]
         # Recomb P (5014 psia) >> sep P (65 psia) → gas more compressed at recomb
         assert sr.V_gas_recomb_cc < sr.V_gas_sep
+
+
+# ---------------------------------------------------------------------------
+# 9. Analytic unity case
+# ---------------------------------------------------------------------------
+
+class TestUnityCase:
+    """
+    Analytic unity cases: when factor = 1 and Bo = 1, the oil/gas split
+    in the cell is determined purely by GOR (in cc/cc):
+
+        V_oil = V_live / (1 + R_cc)
+        V_gas = V_live × R_cc / (1 + R_cc)
+
+    GOR break-even table (factor=1, Bo=1, V_live=1):
+        R_cc = 0.5  →  oil = 2/3,  gas = 1/3
+        R_cc = 1.0  →  oil = 1/2,  gas = 1/2   ← the 50/50 point
+        R_cc = 2.0  →  oil = 1/3,  gas = 2/3
+
+    Implementation note
+    -------------------
+    factor = (P_std / P_recomb) × (T_recomb_R / T_std_R) × Z
+
+    The code's internal standard is 60 °F = 519.67 °R (field convention).
+    SI 15 °C = 518.67 °R ≠ 519.67 °R, so using SI with P_std_bara / 15 °C
+    yields factor ≈ 0.9981, not exactly 1.
+
+    To get factor = 1 exactly we use field units with:
+        P_recomb  = P_STD_PSIA  (14.696 psia)
+        T_recomb  = 60.0 °F     (maps to T_STD_R = 519.67 °R)
+        Z_recomb  = 1.0
+
+    And to get R_cc = k exactly from the field-unit GOR input we use:
+        GOR_field = k / SCF_STB_TO_CC_CC   [scf/STB]
+    """
+
+    @staticmethod
+    def _std_conditions_kwargs(R_cc_target: float, v_live: float = 1.0) -> dict:
+        """Return calculate_multistage kwargs that give factor=1, R_cc=R_cc_target."""
+        GOR_field = R_cc_target / SCF_STB_TO_CC_CC
+        stage = SeparatorStage(R=GOR_field, P=P_STD_PSIA, T=60.0, Z=1.0)
+        return dict(
+            stages=[stage], V_live=v_live, Bo_sep=1.0,
+            P_recomb=P_STD_PSIA, T_recomb=60.0, Z_recomb=1.0,
+            units="field",
+        )
+
+    def test_unity_gor_factor_gives_exact_50_50_split(self):
+        """R_cc=1, factor=1, Bo=1 → V_oil = V_gas = V_live/2 exactly."""
+        res = calculate_multistage(**self._std_conditions_kwargs(R_cc_target=1.0))
+
+        assert res.cylinder_mix_ratio    == pytest.approx(1.0, rel=1e-10)
+        assert res.V_oil_sep             == pytest.approx(0.5, rel=1e-10)
+        assert res.total_V_gas_recomb_cc == pytest.approx(0.5, rel=1e-10)
+
+    @pytest.mark.parametrize("v_live", [1.0, 300.0, 2000.0])
+    def test_unity_50_50_scales_with_v_live(self, v_live):
+        """The 50/50 split holds for any cell volume when R_cc=1, factor=1."""
+        res = calculate_multistage(**self._std_conditions_kwargs(R_cc_target=1.0, v_live=v_live))
+
+        assert res.V_oil_sep             == pytest.approx(v_live / 2, rel=1e-10)
+        assert res.total_V_gas_recomb_cc == pytest.approx(v_live / 2, rel=1e-10)
+
+    def test_gor_below_unity_gives_more_oil_than_gas(self):
+        """R_cc=0.5, factor=1 → oil = 2/3, gas = 1/3."""
+        res = calculate_multistage(**self._std_conditions_kwargs(R_cc_target=0.5))
+
+        assert res.V_oil_sep             == pytest.approx(2/3, rel=1e-10)
+        assert res.total_V_gas_recomb_cc == pytest.approx(1/3, rel=1e-10)
+
+    def test_gor_above_unity_gives_more_gas_than_oil(self):
+        """R_cc=2.0, factor=1 → oil = 1/3, gas = 2/3."""
+        res = calculate_multistage(**self._std_conditions_kwargs(R_cc_target=2.0))
+
+        assert res.V_oil_sep             == pytest.approx(1/3, rel=1e-10)
+        assert res.total_V_gas_recomb_cc == pytest.approx(2/3, rel=1e-10)
+
+    def test_general_analytic_formula(self):
+        """V_oil = V_live/(1+R_cc) holds for arbitrary R_cc when factor=1."""
+        for R_cc in [0.1, 0.5, 1.0, 2.0, 5.0]:
+            res = calculate_multistage(**self._std_conditions_kwargs(R_cc_target=R_cc))
+            expected_oil = 1.0 / (1.0 + R_cc)
+            expected_gas = R_cc / (1.0 + R_cc)
+            assert res.V_oil_sep             == pytest.approx(expected_oil, rel=1e-10), f"R_cc={R_cc}"
+            assert res.total_V_gas_recomb_cc == pytest.approx(expected_gas, rel=1e-10), f"R_cc={R_cc}"

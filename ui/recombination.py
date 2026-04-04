@@ -431,9 +431,32 @@ def _render_content() -> None:
         unsafe_allow_html=True,
     )
 
-    # ── Process diagram ──────────────────────────────────────────────────────
+    # ── INPUT SUMMARY SECTION ────────────────────────────────────────────────
+    st.markdown(
+        '<div class="pvt-section-input-banner">📋 Input Summary — values used for this calculation</div>',
+        unsafe_allow_html=True,
+    )
+
+    # Process diagram (now SVG-based)
     st.markdown(
         C.process_diagram(oil_source, n_stages, labels, stages, units, pres_unit, temp_unit),
+        unsafe_allow_html=True,
+    )
+
+    # Input summary card echoing all key inputs
+    st.markdown(
+        C.input_summary_card(
+            res=res, stages=stages, v_live=v_live, bo_sep=bo_sep_eff,
+            n_stages=n_stages, oil_source=oil_source, r_sto=r_sto,
+            p_charge=p_charge, c_o_x1e6=c_o_x1e6,
+            gor_unit=gor_unit, pres_unit=pres_unit, temp_unit=temp_unit,
+        ),
+        unsafe_allow_html=True,
+    )
+
+    # ── OUTPUT SECTION BANNER ─────────────────────────────────────────────────
+    st.markdown(
+        '<div class="pvt-section-output-banner">⚗️ Calculation Results — lab charge instructions</div>',
         unsafe_allow_html=True,
     )
 
@@ -486,18 +509,46 @@ def _render_content() -> None:
         )
 
     # ── Calculation steps ──────────────────────────────────────────────────
-    with st.expander("📐 Calculation Steps", expanded=False):
+    with st.expander("📐 Calculation Steps (show/hide)", expanded=False):
         factor_r = (P_STD_PSIA / res.P_recomb_psia) * (res.T_recomb_R / T_STD_R) * res.Z_recomb
         R_total_eff_cc = res.R_total_cc + res.R_STO_cc
 
+        # Unit conversion reference box
+        conv_ref = (
+            f'<div class="conv-table">'
+            f'<b>Key unit conversions:</b><br>'
+            f'1 scf/STB = {SCF_STB_TO_CC_CC:.6f} sm³/sm³ (cc gas std / cc STO)<br>'
+            f'1 STB = 158,987 cc &nbsp;|&nbsp; 1 scf = 28,316.8 cc<br>'
+            f'P_std = {P_STD_PSIA:.3f} psia &nbsp;|&nbsp; T_std = 60 °F = {T_STD_R:.2f} °R &nbsp;|&nbsp; T(°R) = T(°F) + 459.67'
+            f'</div>'
+        ) if units == "field" else (
+            f'<div class="conv-table">'
+            f'<b>Key unit conversions:</b><br>'
+            f'1 sm³/sm³ = {1/SCF_STB_TO_CC_CC:.4f} scf/STB<br>'
+            f'P_std = 1.01325 bara &nbsp;|&nbsp; T_std = 15 °C = 288.15 K<br>'
+            f'T(K) = T(°C) + 273.15 &nbsp;|&nbsp; T(°R) = T(°F) + 459.67'
+            f'</div>'
+        )
+        st.markdown(
+            C.calc_step("Reference — Unit Conversions", conv_ref),
+            unsafe_allow_html=True,
+        )
+
+        t_recomb_f_display = res.T_recomb_F
         st.markdown(
             C.calc_step(
-                "Step 1 — Recombination factor",
-                f"factor_recomb = (P_std/P_recomb) × (T_recomb/T_std) × Z_recomb<br>"
-                f"&nbsp;&nbsp;&nbsp;= ({P_STD_PSIA:.3f}/{res.P_recomb_psia:.2f})"
-                f" × ({res.T_recomb_R:.2f}/{T_STD_R:.2f})"
-                f" × {res.Z_recomb:.3f}"
-                f" = <b>{factor_r:.6f} cc recomb / cc std</b>",
+                "Step 1 — Recombination factor  (converts std conditions → recomb conditions)",
+                f"Purpose: converts volumes measured at standard conditions (P_std={P_STD_PSIA:.3f} psia, T_std=60°F) "
+                f"to the actual volume at recombination conditions (P={res.P_recomb_psia:.2f} psia, T={t_recomb_f_display:.1f}°F).<br>"
+                f"<br>"
+                f"factor = (P_std / P_recomb) × (T_recomb_R / T_std_R) × Z_recomb<br>"
+                f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= ({P_STD_PSIA:.3f} / {res.P_recomb_psia:.2f})"
+                f" × ({res.T_recomb_R:.2f} / {T_STD_R:.2f})"
+                f" × {res.Z_recomb:.3f}<br>"
+                f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= {P_STD_PSIA/res.P_recomb_psia:.6f} × {res.T_recomb_R/T_STD_R:.6f} × {res.Z_recomb:.4f}<br>"
+                f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= <b>{factor_r:.6f} cc gas @ recomb per cc gas @ std</b><br>"
+                f"<em style='font-size:0.75rem;color:#6a7090;'>"
+                f"Note: T_recomb_R = {t_recomb_f_display:.1f}°F + 459.67 = {res.T_recomb_R:.2f} °R</em>",
             ),
             unsafe_allow_html=True,
         )
@@ -505,33 +556,48 @@ def _render_content() -> None:
         # Show effective GOR breakdown for Case 2
         if oil_source == "stock_tank":
             sto_gor_conv = (
-                f"{res.R_STO_input:.2f} {gor_unit} × {SCF_STB_TO_CC_CC:.6f} = <b>{res.R_STO_cc:.6f} cc/cc</b>"
+                f"{res.R_STO_input:.2f} scf/STB × {SCF_STB_TO_CC_CC:.6f} cc/cc per scf/STB = <b>{res.R_STO_cc:.6f} cc/cc</b>"
                 if units == "field"
                 else f"R_STO_cc = <b>{res.R_STO_cc:.6f} cc/cc</b>"
             )
+            sep_gor_conv = (
+                f"{res.R_total_input:.2f} scf/STB × {SCF_STB_TO_CC_CC:.6f} = {res.R_total_cc:.6f} cc/cc"
+                if units == "field"
+                else f"R_sep = {res.R_total_cc:.6f} cc/cc"
+            )
             st.markdown(
                 C.calc_step(
-                    "Step 1b — Total effective GOR (Case 2: sep + STO flash)",
-                    f"R_sep_total = {res.R_total_cc:.6f} cc/cc<br>"
-                    f"R_STO: {sto_gor_conv}<br>"
-                    f"R_total_eff = {res.R_total_cc:.6f} + {res.R_STO_cc:.6f}"
+                    "Step 1b — Total effective GOR (Case 2: separator GOR + stock tank flash GOR)",
+                    f"Sep. GOR:  {sep_gor_conv}<br>"
+                    f"STO GOR:   {sto_gor_conv}<br>"
+                    f"R_total_eff = R_sep + R_STO = {res.R_total_cc:.6f} + {res.R_STO_cc:.6f}"
                     f" = <b>{R_total_eff_cc:.6f} cc/cc</b><br>"
+                    f"<br>"
                     f"Shrinkage factor SF = R_STO / R_sep = {res.R_STO_cc:.6f} / {res.R_total_cc:.6f}"
-                    f" = <b>{res.shrinkage_factor:.4f}</b>",
+                    f" = <b>{res.shrinkage_factor:.6f}</b><br>"
+                    f"<em style='font-size:0.75rem;color:#6a7090;'>"
+                    f"Verification: R_sep × SF = {res.R_total_cc:.6f} × {res.shrinkage_factor:.6f} ≈ {res.R_total_cc * res.shrinkage_factor:.6f} cc/cc (= R_STO: {res.R_STO_cc:.6f})</em>",
                 ),
                 unsafe_allow_html=True,
             )
 
-        bo_str = f"{bo_sep_eff:.3f}" + (" (Case 2: Bo=1 for STO reference)" if oil_source == "stock_tank" else "")
+        bo_str = f"{bo_sep_eff:.4f}" + (" &nbsp;(Case 2: Bo=1.0, stock tank oil is the volume reference)" if oil_source == "stock_tank" else "")
+        oil_sto_note = (
+            f"<em style='font-size:0.75rem;color:#6a7090;'>V_oil_STO = V_oil_recomb / Bo = {res.V_oil_sep:.4f} / {bo_sep_eff:.4f} = {res.V_oil_STO:.4f} cc (stock-tank reference volume)</em>"
+            if oil_source == "separator" else
+            f"<em style='font-size:0.75rem;color:#6a7090;'>V_oil_STO = V_oil_recomb (Bo=1 for stock tank oil)</em>"
+        )
         st.markdown(
             C.calc_step(
-                "Step 2 — Cylinder mix ratio & oil charge volume at P_recomb",
-                f"mix_ratio = R_total_eff_cc × factor / Bo"
-                f" = {R_total_eff_cc:.5f} × {factor_r:.6f} / {bo_str}"
-                f" = <b>{res.cylinder_mix_ratio:.6f} cc gas / cc oil</b><br>"
-                f"V_oil_at_recomb = V_live / (1 + mix_ratio)"
-                f" = {v_live:.1f} / (1 + {res.cylinder_mix_ratio:.4f})"
-                f" = <b>{res.V_oil_sep:.2f} cc</b>",
+                "Step 2 — Cylinder mix ratio & oil volume at recombination pressure",
+                f"mix_ratio = R_total_eff_cc × factor / Bo<br>"
+                f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= {R_total_eff_cc:.6f} × {factor_r:.6f} / {bo_str}<br>"
+                f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= <b>{res.cylinder_mix_ratio:.6f} cc gas @ recomb per cc oil @ recomb</b><br>"
+                f"<br>"
+                f"V_oil_at_recomb = V_live / (1 + mix_ratio)<br>"
+                f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= {v_live:.2f} / (1 + {res.cylinder_mix_ratio:.6f})<br>"
+                f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= <b>{res.V_oil_sep:.4f} cc</b><br>"
+                f"{oil_sto_note}",
             ),
             unsafe_allow_html=True,
         )
@@ -541,67 +607,85 @@ def _render_content() -> None:
         charge_diff_pct = (res.V_oil_charge / res.V_oil_sep - 1.0) * 100.0 if res.V_oil_sep > 0 else 0.0
         st.markdown(
             C.calc_step(
-                "Step 3 — Oil charging volume at P_charge (compressibility correction)",
-                f"ΔP = P_recomb − P_charge = {res.P_recomb_psia:.1f} − {res.P_charge_oil_psia:.1f}"
-                f" = {delta_p:.1f} psi<br>"
-                f"V_oil_charge = V_oil_recomb × (1 + c_o × ΔP)"
-                f" = {res.V_oil_sep:.2f} × (1 + {c_o_x1e6:.1f}×10⁻⁶ × {delta_p:.1f})"
-                f" = <b>{res.V_oil_charge:.2f} cc {oil_label} at {res.P_charge_oil_psia:.0f} psia</b>"
-                f" &nbsp;({charge_diff_pct:+.2f}% vs volume at P_recomb)",
+                "Step 3 — Oil charging volume at P_charge  (isothermal compressibility correction)",
+                f"Oil is loaded into the cell at P_charge ({res.P_charge_oil_psia:.1f} psia), which is "
+                f"lower than P_recomb ({res.P_recomb_psia:.1f} psia). At lower pressure the oil "
+                f"expands slightly — more oil must be loaded to yield the correct volume at P_recomb.<br>"
+                f"<br>"
+                f"ΔP = P_recomb − P_charge = {res.P_recomb_psia:.2f} − {res.P_charge_oil_psia:.2f} = {delta_p:.2f} psi<br>"
+                f"c_o = {c_o_x1e6:.1f} × 10⁻⁶ psi⁻¹<br>"
+                f"<br>"
+                f"V_oil_charge = V_oil_recomb × (1 + c_o × ΔP)<br>"
+                f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= {res.V_oil_sep:.4f} × (1 + {c_o_x1e6:.2f}×10⁻⁶ × {delta_p:.2f})<br>"
+                f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= {res.V_oil_sep:.4f} × {1 + c_o_x1e6*1e-6*delta_p:.8f}<br>"
+                f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= <b>{res.V_oil_charge:.4f} cc {oil_label} at P_charge = {res.P_charge_oil_psia:.0f} psia</b><br>"
+                f"<em style='font-size:0.75rem;color:#6a7090;'>"
+                f"Volume difference: {charge_diff_pct:+.4f}% — oil occupies {abs(charge_diff_pct):.4f}% "
+                f"{'more' if charge_diff_pct > 0 else 'less'} at P_charge vs P_recomb</em>",
             ),
             unsafe_allow_html=True,
         )
 
         step_offset = 4
         for sr in res.stage_results:
-            gor_conv = (
-                f"{sr.R_input:.1f} scf/STB × {SCF_STB_TO_CC_CC:.6f} = <b>{sr.R_cc:.5f} cc/cc</b>"
-                if units == "field"
-                else f"R_cc = <b>{sr.R_cc:.5f} cc/cc</b>"
-            )
+            if units == "field":
+                gor_conv = (
+                    f"GOR = {sr.R_input:.2f} scf/STB<br>"
+                    f"R_cc = {sr.R_input:.2f} scf/STB × {SCF_STB_TO_CC_CC:.6f} sm³/sm³ per scf/STB "
+                    f"= <b>{sr.R_cc:.6f} cc gas(std) / cc STO</b>"
+                )
+            else:
+                gor_conv = f"R_cc = <b>{sr.R_cc:.6f} cc gas(std) / cc STO</b>"
+
             st.markdown(
                 C.calc_step(
-                    f"Step {step_offset + sr.stage_num - 1} — Stage {sr.stage_num} ({sr.label}) gas",
+                    f"Step {step_offset + sr.stage_num - 1} — Stage {sr.stage_num} ({sr.label}): gas volumes",
                     f"{gor_conv}<br>"
-                    f"V_gas_std = {sr.R_cc:.5f} × {res.V_oil_STO:.2f}"
-                    f" = <b>{sr.V_gas_std_cc:.2f} cc</b>"
-                    f" ({sr.V_gas_std_unit:.5f} {gas_unit})<br>"
-                    f"V_gas_recomb = V_gas_std × factor"
-                    f" = {sr.V_gas_std_cc:.2f} × {factor_r:.6f}"
-                    f" = <b>{sr.V_gas_recomb_cc:.2f} cc</b>",
+                    f"<br>"
+                    f"V_gas_std = R_cc × V_oil_STO = {sr.R_cc:.6f} × {res.V_oil_STO:.4f} = <b>{sr.V_gas_std_cc:.4f} cc @ std</b><br>"
+                    f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= {sr.V_gas_std_unit:.6f} {gas_unit} "
+                    f"<em style='color:#6a7090;'>(= {sr.V_gas_std_cc:.4f} / {1/SCF_STB_TO_CC_CC*1000:.4f} × 1000)</em><br>"
+                    f"<br>"
+                    f"V_gas_recomb = V_gas_std × factor = {sr.V_gas_std_cc:.4f} × {factor_r:.6f} = <b>{sr.V_gas_recomb_cc:.4f} cc @ recomb</b><br>"
+                    f"<em style='font-size:0.75rem;color:#6a7090;'>"
+                    f"This stage contributes {sr.pct_of_total:.2f}% of total GOR — gas separator at {sr.Z:.4f} Z-factor</em>",
                 ),
                 unsafe_allow_html=True,
             )
 
         if oil_source == "stock_tank" and res.R_STO_cc > 0:
-            sto_conv = (
-                f"{res.R_STO_input:.1f} scf/STB × {SCF_STB_TO_CC_CC:.6f} = <b>{res.R_STO_cc:.5f} cc/cc</b>"
-                if units == "field"
-                else f"R_STO_cc = <b>{res.R_STO_cc:.5f} cc/cc</b>"
-            )
+            if units == "field":
+                sto_conv = (
+                    f"Stock tank GOR = {res.R_STO_input:.2f} scf/STB<br>"
+                    f"R_STO_cc = {res.R_STO_input:.2f} × {SCF_STB_TO_CC_CC:.6f} = <b>{res.R_STO_cc:.6f} cc/cc</b>"
+                )
+            else:
+                sto_conv = f"R_STO_cc = <b>{res.R_STO_cc:.6f} cc/cc</b>"
+
             st.markdown(
                 C.calc_step(
                     f"Step {step_offset + n_stages} — Stock tank flash gas (Case 2)",
                     f"{sto_conv}<br>"
-                    f"V_STO_gas_std = {res.R_STO_cc:.5f} × {res.V_oil_STO:.2f}"
-                    f" = <b>{res.V_STO_gas_std_cc:.2f} cc</b>"
-                    f" ({res.V_STO_gas_std_unit:.5f} {gas_unit})<br>"
-                    f"V_STO_gas_recomb = V_STO_gas_std × factor"
-                    f" = {res.V_STO_gas_std_cc:.2f} × {factor_r:.6f}"
-                    f" = <b>{res.V_STO_gas_recomb_cc:.2f} cc</b><br>"
-                    f"<em>Treated as separator gas for cylinder volume calculation (lab convention)</em>",
+                    f"<br>"
+                    f"V_STO_gas_std = R_STO_cc × V_oil_STO = {res.R_STO_cc:.6f} × {res.V_oil_STO:.4f} = <b>{res.V_STO_gas_std_cc:.4f} cc @ std</b><br>"
+                    f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= {res.V_STO_gas_std_unit:.6f} {gas_unit}<br>"
+                    f"<br>"
+                    f"V_STO_gas_recomb = V_STO_gas_std × factor = {res.V_STO_gas_std_cc:.4f} × {factor_r:.6f} = <b>{res.V_STO_gas_recomb_cc:.4f} cc @ recomb</b><br>"
+                    f"<em style='font-size:0.75rem;color:#6a7090;'>"
+                    f"Lab convention: STO flash gas is charged from the same gas cylinder as separator gas.</em>",
                 ),
                 unsafe_allow_html=True,
             )
 
         if n_stages > 1 or (oil_source == "stock_tank" and res.R_STO_cc > 0):
+            gas_parts = " + ".join(f"{sr.V_gas_recomb_cc:.4f}" for sr in res.stage_results)
+            sto_part  = f" + {res.V_STO_gas_recomb_cc:.4f} (STO flash)" if oil_source == "stock_tank" else ""
             st.markdown(
                 C.calc_step(
-                    f"Step {step_offset + n_stages + (1 if oil_source == 'stock_tank' else 0)} — Total gas @ recomb",
-                    " + ".join(f"{sr.V_gas_recomb_cc:.2f}" for sr in res.stage_results)
-                    + (f" + {res.V_STO_gas_recomb_cc:.2f} (STO)" if oil_source == "stock_tank" else "")
-                    + f" = <b>{res.total_V_gas_recomb_cc:.2f} cc @ recomb</b>"
-                    f" ({res.total_V_gas_std_cc:.2f} cc @ std)",
+                    f"Step {step_offset + n_stages + (1 if oil_source == 'stock_tank' else 0)} — Total gas @ recombination",
+                    f"V_gas_total_recomb = {gas_parts}{sto_part}<br>"
+                    f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= <b>{res.total_V_gas_recomb_cc:.4f} cc @ recomb</b><br>"
+                    f"V_gas_total_std    = <b>{res.total_V_gas_std_cc:.4f} cc @ std</b> = {res.total_V_gas_std_unit:.6f} {gas_unit}",
                 ),
                 unsafe_allow_html=True,
             )
@@ -615,10 +699,12 @@ def _render_content() -> None:
         gor_sym = "✓" if gor_err_pct < 0.1 else "⚠"
         st.markdown(
             C.calc_step(
-                "GOR Verification",
-                f"Back-calc: {res.GOR_check:.4f} {gor_unit}"
-                f" — input: {gor_ref_str} {gor_unit}<br>"
-                f'<span class="{gor_cls}">{gor_sym} error = {gor_err_pct:.5f}%</span>',
+                "GOR Verification  (back-calculate GOR from charged volumes)",
+                f"Back-calc GOR = V_gas_total_std / (V_oil_STO × {SCF_STB_TO_CC_CC:.6f})" + (" [field→SI conv.]" if units == "field" else "") + "<br>"
+                f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= {res.GOR_check:.6f} {gor_unit}<br>"
+                f"Input GOR:   {gor_ref_str} {gor_unit}<br>"
+                f'<span class="{gor_cls}">{gor_sym} Relative error = {gor_err_pct:.6f}%</span>'
+                + (" &nbsp;← ✓ within 0.1% tolerance" if gor_err_pct < 0.1 else " &nbsp;← ⚠ exceeds 0.1% tolerance"),
             ),
             unsafe_allow_html=True,
         )
