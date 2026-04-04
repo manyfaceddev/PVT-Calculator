@@ -17,7 +17,7 @@ def valid_stage():
 @pytest.fixture
 def valid_kwargs():
     """Keyword args that should produce zero validation errors in field units."""
-    return dict(V_live=300.0, Bo_sep=1.0, P_recomb=5014.7, T_recomb=200.0,
+    return dict(V_live=300.0, SF=1.0, P_recomb=5014.7, T_recomb=200.0,
                 Z_recomb=0.82, units="field")
 
 
@@ -42,7 +42,7 @@ class TestValidInput:
         stage  = SeparatorStage(R=151.4, P=55.8, T=62.8, Z=0.865)
         errors = validate_multistage(
             [stage],
-            V_live=300.0, Bo_sep=1.0, P_recomb=346.7, T_recomb=93.3,
+            V_live=300.0, SF=1.0, P_recomb=346.7, T_recomb=93.3,
             Z_recomb=0.82, units="si",
         )
         assert errors == []
@@ -91,7 +91,7 @@ class TestStageErrors:
         stage  = SeparatorStage(R=151.4, P=55.8, T=-100, Z=0.865)
         errors = validate_multistage(
             [stage],
-            V_live=300.0, Bo_sep=1.0, P_recomb=346.7, T_recomb=93.3,
+            V_live=300.0, SF=1.0, P_recomb=346.7, T_recomb=93.3,
             Z_recomb=0.82, units="si",
         )
         assert any("temperature" in e.lower() for e in errors)
@@ -112,15 +112,16 @@ class TestGlobalErrors:
         errors = validate_multistage([valid_stage], **kwargs)
         assert any("live" in e.lower() or "volume" in e.lower() for e in errors)
 
-    def test_zero_bo_sep(self, valid_stage, valid_kwargs):
-        kwargs = {**valid_kwargs, "Bo_sep": 0.0}
+    def test_zero_sf(self, valid_stage, valid_kwargs):
+        kwargs = {**valid_kwargs, "SF": 0.0}
         errors = validate_multistage([valid_stage], **kwargs)
-        assert any("Bo" in e for e in errors)
+        assert any("SF" in e or "Shrinkage" in e for e in errors)
 
-    def test_bo_sep_above_limit(self, valid_stage, valid_kwargs):
-        kwargs = {**valid_kwargs, "Bo_sep": 6.0}
+    def test_sf_above_limit(self, valid_stage, valid_kwargs):
+        """SF > 1.0 would mean oil expands going to stock tank — physically impossible."""
+        kwargs = {**valid_kwargs, "SF": 1.1}
         errors = validate_multistage([valid_stage], **kwargs)
-        assert any("Bo" in e for e in errors)
+        assert any("SF" in e or "Shrinkage" in e for e in errors)
 
     def test_zero_p_recomb(self, valid_stage, valid_kwargs):
         kwargs = {**valid_kwargs, "P_recomb": 0.0}

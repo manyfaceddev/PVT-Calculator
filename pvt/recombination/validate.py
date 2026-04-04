@@ -30,19 +30,17 @@ def validate(inp: RecombinationInputs) -> list[str]:
 
 
 def validate_multistage(
-    stages:       list[SeparatorStage],
-    V_live:       float,
-    Bo_sep:       float,
-    P_recomb:     float,
-    T_recomb:     float,
-    Z_recomb:     float,
-    units:        Units,
-    oil_source:   str   = "separator",
-    R_STO:        float = 0.0,
-    P_charge_oil: float = 2014.7,
-    c_o:          float = 10.0e-6,
+    stages:     list[SeparatorStage],
+    V_live:     float,
+    SF:         float,          # Separator-Oil Shrinkage Factor (0 < SF ≤ 1)
+    P_recomb:   float,
+    T_recomb:   float,
+    Z_recomb:   float,
+    units:      Units,
+    oil_source: str   = "separator",
+    FF:         float = 0.0,    # Flash Factor (scf/STB STO or sm³/sm³); Case 2 only
 ) -> list[str]:
-    """Validate multi-stage recombination inputs."""
+    """Validate multi-stage recombination inputs (Carlsen & Whitson framework)."""
     errors: list[str] = []
 
     if not stages:
@@ -63,10 +61,11 @@ def validate_multistage(
     if V_live <= 0:
         errors.append("Live fluid volume must be > 0 cc.")
 
-    # Bo_sep only meaningful for Case 1 (separator oil)
+    # SF only meaningful for Case 1 (separator oil); Case 2 charges STO directly.
     if oil_source == "separator":
-        if Bo_sep <= 0 or Bo_sep > 5.0:
-            errors.append("Bo_sep must be in range (0, 5.0].")
+        if SF <= 0 or SF > 1.0:
+            errors.append("Shrinkage Factor (SF) must be in range (0, 1.0]. "
+                          "Typical values: 0.65–0.99.")
 
     if P_recomb <= 0:
         errors.append("Recombination pressure must be > 0.")
@@ -77,24 +76,9 @@ def validate_multistage(
     if units == "si" and T_recomb < -73:
         errors.append("Recombination temperature (°C) looks unrealistically low.")
 
-    # Oil charging pressure
-    if P_charge_oil <= 0:
-        errors.append("Oil charging pressure must be > 0.")
-    if P_charge_oil >= P_recomb:
-        errors.append(
-            "Oil charging pressure must be less than recombination pressure "
-            "(oil is loaded at a lower pressure; gas brings it up to P_recomb)."
-        )
-
-    # Oil compressibility
-    if c_o < 0:
-        errors.append("Oil compressibility (c_o) must be ≥ 0.")
-    if c_o > 1.0e-3:
-        errors.append("Oil compressibility (c_o) seems unrealistically high (> 1000 × 10⁻⁶ psi⁻¹).")
-
-    # Case 2 — stock tank GOR
+    # Case 2 — Flash Factor
     if oil_source == "stock_tank":
-        if R_STO < 0:
-            errors.append("Stock tank GOR must be ≥ 0.")
+        if FF < 0:
+            errors.append("Flash Factor (FF) must be ≥ 0.")
 
     return errors
