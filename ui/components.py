@@ -224,27 +224,27 @@ def hero_card(
             f'</div></div>'
         )
 
-    # STO flash gas row (Case 2 only)
+    # Flash gas row (Case 2 only)
     sto_gas_row = ""
-    if res.oil_source == "stock_tank" and res.R_STO_cc > 0:
-        sto_pct = (
-            res.R_STO_cc / (res.R_total_cc + res.R_STO_cc) * 100.0
-            if (res.R_total_cc + res.R_STO_cc) > 0 else 0.0
+    if res.oil_source == "stock_tank" and res.FF_cc > 0:
+        ff_pct = (
+            res.FF_cc / res.Rp_total_cc * 100.0
+            if res.Rp_total_cc > 0 else 0.0
         )
         sto_gas_row = (
             f'<div class="charge-row"><div>'
-            f'<span class="charge-val">{res.V_STO_gas_recomb_cc:,.1f}</span>'
-            f'<span class="charge-unit">cc STO flash gas @ recomb</span>'
-            f'<div class="charge-label">Stock tank flash · {res.V_STO_gas_std_cc:,.1f} cc @ std'
-            f' · {res.V_STO_gas_std_unit:.4f} {gas_unit}'
-            f' · ({sto_pct:.0f}% of total GOR)'
-            f'<br><em style="font-size:0.72rem;color:#6a7f96;">Charged as separator gas (lab convention)</em></div>'
+            f'<span class="charge-val">{res.V_FF_gas_recomb_cc:,.1f}</span>'
+            f'<span class="charge-unit">cc flash gas (FF) @ recomb</span>'
+            f'<div class="charge-label">Flash Factor gas · {res.V_FF_gas_std_cc:,.1f} cc @ std'
+            f' · {res.V_FF_gas_std_unit:.4f} {gas_unit}'
+            f' · ({ff_pct:.0f}% of total GOR)'
+            f'<br><em style="font-size:0.72rem;color:#6a7f96;">Loaded from separator gas cylinder (lab convention)</em></div>'
             f'</div></div>'
         )
 
     # Total gas row (multi-stage or Case 2)
     total_gas_row = ""
-    if n_stages > 1 or (res.oil_source == "stock_tank" and res.R_STO_cc > 0):
+    if n_stages > 1 or (res.oil_source == "stock_tank" and res.FF_cc > 0):
         total_gas_row = (
             f'<hr class="hero-divider">'
             f'<div class="charge-row"><div>'
@@ -257,38 +257,30 @@ def hero_card(
 
     oil_pct = 100.0 / (1.0 + res.cylinder_mix_ratio)
 
-    # Oil charge rows — show both target (at P_recomb) and actual charge (at P_charge)
-    charge_diff_pct = (res.V_oil_charge / res.V_oil_sep - 1.0) * 100.0 if res.V_oil_sep > 0 else 0.0
-    direction = "larger" if charge_diff_pct > 0 else "smaller"
-
     oil_row = (
-        # Primary row: what to physically charge at P_charge
         f'<div class="charge-row"><div>'
-        f'<span class="charge-val" style="color:#0a6640;">{res.V_oil_charge:,.1f}</span>'
+        f'<span class="charge-val" style="color:#0a6640;">{res.V_oil_sep:,.1f}</span>'
         f'<span class="charge-unit">cc {oil_label}</span>'
         f'<div class="charge-label" style="color:#0a6640;font-weight:600;">'
-        f'⭐ CHARGE at {res.P_charge_oil_psia:.0f} {pres_unit} (oil charging pressure)'
-        f' · ({oil_pct:.1f}% of live fluid at P_recomb)</div>'
+        f'⭐ CHARGE at recombination pressure ({res.P_recomb_psia:.0f} {pres_unit})'
+        f' · ({oil_pct:.1f}% of live fluid)</div>'
         f'</div></div>'
-        # Secondary row: what the oil will occupy at P_recomb
         f'<div class="charge-row" style="opacity:0.75;"><div>'
-        f'<span class="charge-val" style="font-size:1.2rem;">{res.V_oil_sep:,.1f}</span>'
-        f'<span class="charge-unit">cc {oil_label} @ P_recomb</span>'
-        f'<div class="charge-label">Oil occupies this volume at final recomb conditions'
-        f' · charging volume is {abs(charge_diff_pct):.2f}% {direction} due to compressibility</div>'
+        f'<span class="charge-val" style="font-size:1.2rem;">{res.V_oil_STO:,.1f}</span>'
+        f'<span class="charge-unit">cc STO equivalent</span>'
+        f'<div class="charge-label">Stock-tank oil equivalent · SF = {res.SF:.4f}</div>'
         f'</div></div>'
     )
 
-    # Case 2 shrinkage info
+    # Case 2 SF info banner
     sto_info = ""
-    if res.oil_source == "stock_tank" and res.shrinkage_factor > 0:
+    if res.oil_source == "stock_tank" and res.FF_cc > 0:
         sto_info = (
             f'<div style="background:#fff8e1;border-left:3px solid #f9a825;'
             f'padding:6px 10px;margin:6px 0;border-radius:0 4px 4px 0;font-size:0.78rem;color:#6d4c00;">'
-            f'<strong>Shrinkage factor</strong> SF = R_STO / R_sep = '
-            f'{res.R_STO_input:.1f} / {res.R_total_input:.1f} {gor_unit} = <strong>{res.shrinkage_factor:.4f}</strong>'
-            f'&nbsp;·&nbsp;R_sep × SF = R_STO confirms: '
-            f'{res.R_total_input:.1f} × {res.shrinkage_factor:.4f} = {res.R_total_input * res.shrinkage_factor:.1f}'
+            f'<strong>Flash Factor FF</strong> = {res.FF_input:.1f} {gor_unit}'
+            f' &nbsp;·&nbsp; Rp = R_sep + FF = {res.R_total_input:.1f} + {res.FF_input:.1f}'
+            f' = <strong>{R_total_eff_input:.1f} {gor_unit}</strong>'
             f'</div>'
         )
 
@@ -313,7 +305,7 @@ def hero_card(
         f'<hr class="hero-divider">'
         f'<div class="hero-sub">'
         f'Total GOR: {R_total_eff_input:.1f} {gor_unit}'
-        + (f' (sep: {res.R_total_input:.1f} + STO: {res.R_STO_input:.1f})' if res.oil_source == "stock_tank" else '')
+        + (f' (sep: {res.R_total_input:.1f} + FF: {res.FF_input:.1f})' if res.oil_source == "stock_tank" else '')
         + f' &nbsp;·&nbsp;'
         f'Recomb: {res.P_recomb_psia:.0f} {pres_unit} / {res.T_recomb_F:.0f}°F'
         f' / Z={res.Z_recomb:.3f} &nbsp;·&nbsp;'
@@ -341,12 +333,12 @@ def metric_card(value: str, unit: str, label: str, accent: bool = False) -> str:
 def metric_cards_row(res: MultiStageResults, gor_unit: str, pb_html: str = "") -> str:
     oil_label = "STO Oil to Charge" if res.oil_source == "stock_tank" else "Oil to Charge"
     cards = (
-        metric_card(f"{res.V_oil_charge:,.1f}",            "cc @ charge P",  oil_label,           accent=True)
-        + metric_card(f"{res.total_V_gas_recomb_cc:,.1f}", "cc @ recomb",    "Gas to Charge",      accent=True)
+        metric_card(f"{res.V_oil_sep:,.1f}",               "cc @ recomb P",  oil_label,            accent=True)
+        + metric_card(f"{res.total_V_gas_recomb_cc:,.1f}", "cc @ recomb",    "Gas to Charge",       accent=True)
         + metric_card(f"{res.cylinder_mix_ratio:.4f}",     "cc/cc",          "Mix Ratio")
         + metric_card(f"{res.total_V_gas_std_cc:,.1f}",   "cc @ std",       "Total Gas @ Std")
         + metric_card(f"{res.R_total_input:,.1f}",         gor_unit,         "Sep. Stage GOR")
-        + (metric_card(f"{res.R_STO_input:,.1f}", gor_unit, "STO GOR") if res.oil_source == "stock_tank" else "")
+        + (metric_card(f"{res.FF_input:,.1f}", gor_unit, "Flash Factor FF") if res.oil_source == "stock_tank" else "")
         + pb_html
     )
     return f'<div class="pvt-card-row">{cards}</div>'
@@ -432,29 +424,29 @@ def stage_card(
 # ===========================================================================
 
 def sto_gas_card(res: MultiStageResults, gor_unit: str, gas_unit: str) -> str:
-    sto_pct = (
-        res.R_STO_cc / (res.R_total_cc + res.R_STO_cc) * 100.0
-        if (res.R_total_cc + res.R_STO_cc) > 0 else 0.0
+    ff_pct = (
+        res.FF_cc / res.Rp_total_cc * 100.0
+        if res.Rp_total_cc > 0 else 0.0
     )
     return (
         f'<div class="stage-card" style="border-left-color:#f9a825;">'
-        f'<div class="sc-title">Stock Tank Flash — STO Gas'
+        f'<div class="sc-title">Flash Factor Gas (FF) — Case 2'
         f'&nbsp;<span style="font-weight:400;color:#4a6080;font-size:0.8rem;">'
-        f'({sto_pct:.1f}% of total GOR)</span></div>'
-        f'<div class="sc-row"><span class="sc-lbl">Stock Tank GOR</span>'
-        f'<span class="sc-val">{res.R_STO_input:.1f} {gor_unit}</span></div>'
-        f'<div class="sc-row"><span class="sc-lbl">Shrinkage factor SF</span>'
-        f'<span class="sc-val">{res.shrinkage_factor:.4f}'
-        f'&nbsp;<span style="font-size:0.75rem;color:#6a7f96;">(R_STO / R_sep)</span></span></div>'
+        f'({ff_pct:.1f}% of total Rp)</span></div>'
+        f'<div class="sc-row"><span class="sc-lbl">Flash Factor FF</span>'
+        f'<span class="sc-val">{res.FF_input:.1f} {gor_unit}</span></div>'
+        f'<div class="sc-row"><span class="sc-lbl">FF (cc/cc)</span>'
+        f'<span class="sc-val">{res.FF_cc:.6f}'
+        f'&nbsp;<span style="font-size:0.75rem;color:#6a7f96;">cc gas std / cc STO</span></span></div>'
         f'<div class="sc-row"><span class="sc-lbl">Gas @ std cond.</span>'
-        f'<span class="sc-val">{res.V_STO_gas_std_cc:,.2f} cc'
-        f' &nbsp;({res.V_STO_gas_std_unit:.5f} {gas_unit})</span></div>'
+        f'<span class="sc-val">{res.V_FF_gas_std_cc:,.2f} cc'
+        f' &nbsp;({res.V_FF_gas_std_unit:.5f} {gas_unit})</span></div>'
         f'<div class="sc-row"><span class="sc-lbl">Gas @ recomb cond.</span>'
         f'<span class="sc-val" style="color:#f9a825;font-size:1rem;">'
-        f'{res.V_STO_gas_recomb_cc:,.2f} cc</span></div>'
+        f'{res.V_FF_gas_recomb_cc:,.2f} cc</span></div>'
         f'<div class="sc-row" style="font-size:0.73rem;color:#6a7f96;">'
         f'<span class="sc-lbl">Note</span>'
-        f'<span class="sc-val">Charged as separator gas (lab convention)</span></div>'
+        f'<span class="sc-val">Loaded from separator gas cylinder (lab convention)</span></div>'
         f'</div>'
     )
 
@@ -492,7 +484,7 @@ def lab_report_table(
     res:               MultiStageResults,
     stages:            list,
     v_live:            float,
-    bo_sep:            float,
+    sf:                float,
     n_stages:          int,
     gor_unit:          str,
     pres_unit:         str,
@@ -500,7 +492,6 @@ def lab_report_table(
     gas_unit:          str,
     gor_err_pct:       float,
     R_total_eff_input: float = 0.0,
-    c_o_x1e6:         float = 10.0,
     show_pb:           bool  = False,
     Pb_disp:           float = 0.0,
     Pb_lo:             float = 0.0,
@@ -515,7 +506,7 @@ def lab_report_table(
     rows += _tsect("SETUP")
     rows += _trow("Oil Source",        "Separator Oil" if res.oil_source == "separator" else "Stock Tank Oil (STO)")
     rows += _trow("Live Fluid Volume", f"{v_live:.2f}",  "cc")
-    rows += _trow("Bo (separator)",    f"{bo_sep:.4f}",  "res/STO" if res.oil_source == "separator" else "= 1.0 (STO reference)")
+    rows += _trow("SF (Shrinkage Factor)",  f"{sf:.4f}",  "V_STO / V_sep_oil  (Carlsen & Whitson 2020)")
     rows += _trow("Stages",            str(n_stages))
     rows += _trow("Units",             res.units)
 
@@ -528,12 +519,10 @@ def lab_report_table(
     rows += _trow("Temperature", f"{res.T_recomb_F:.1f}",    "°F")
     rows += _trow("Z-factor",    f"{res.Z_recomb:.4f}")
 
-    rows += _tsect("OIL CHARGING CONDITIONS")
-    rows += _trow("Oil Charging Pressure",  f"{res.P_charge_oil_psia:.2f}", "psia")
-    rows += _trow("Oil Compressibility c_o", f"{c_o_x1e6:.1f} × 10⁻⁶",    "psi⁻¹")
     oil_label = "STO Oil" if res.oil_source == "stock_tank" else "Separator Oil"
-    rows += _trow(f"{oil_label} at P_recomb",   f"{res.V_oil_sep:.4f}",    "cc")
-    rows += _trow(f"{oil_label} at P_charge ⭐", f"{res.V_oil_charge:.4f}", "cc  ← charge this amount")
+    rows += _tsect("OIL VOLUMES")
+    rows += _trow(f"{oil_label} at P_recomb ⭐", f"{res.V_oil_sep:.4f}", "cc  ← charge this amount")
+    rows += _trow("STO Oil Equivalent",          f"{res.V_oil_STO:.4f}", "cc")
 
     for sr in res.stage_results:
         p_in = stages[sr.stage_num - 1].P
@@ -551,28 +540,26 @@ def lab_report_table(
         rows += _trow("% of GOR",         f"{sr.pct_of_total:.2f}",    "%")
 
     if res.oil_source == "stock_tank":
-        rows += _tsect("STOCK TANK FLASH (Case 2)")
-        rows += _trow("Stock Tank GOR",   f"{res.R_STO_input:.2f}",       gor_unit)
-        rows += _trow("Stock Tank GOR",   f"{res.R_STO_cc:.6f}",          "cc/cc")
-        rows += _trow("Shrinkage Factor", f"{res.shrinkage_factor:.6f}",  "R_STO / R_sep")
-        rows += _trow("STO Gas @ std",    f"{res.V_STO_gas_std_cc:.4f}",  "cc")
-        rows += _trow("STO Gas @ std",    f"{res.V_STO_gas_std_unit:.6f}", gas_unit)
-        rows += _trow("STO Gas @ recomb", f"{res.V_STO_gas_recomb_cc:.4f}", "cc")
+        rows += _tsect("FLASH FACTOR (Case 2)")
+        rows += _trow("Flash Factor FF",    f"{res.FF_input:.2f}",          gor_unit)
+        rows += _trow("Flash Factor FF",    f"{res.FF_cc:.6f}",             "cc/cc")
+        rows += _trow("FF Gas @ std",       f"{res.V_FF_gas_std_cc:.4f}",   "cc")
+        rows += _trow("FF Gas @ std",       f"{res.V_FF_gas_std_unit:.6f}", gas_unit)
+        rows += _trow("FF Gas @ recomb",    f"{res.V_FF_gas_recomb_cc:.4f}", "cc")
 
     rows += _tsect("CHARGE VOLUMES")
-    rows += _trow(f"{oil_label} at P_recomb", f"{res.V_oil_sep:.4f}",             "cc")
-    rows += _trow(f"{oil_label} at P_charge", f"{res.V_oil_charge:.4f}",          "cc  ← charge this amount")
-    rows += _trow("STO Oil Equiv.",           f"{res.V_oil_STO:.4f}",             "cc")
-    rows += _trow("Total Gas @ recomb",       f"{res.total_V_gas_recomb_cc:.4f}", "cc")
-    rows += _trow("Total Gas @ std",          f"{res.total_V_gas_std_cc:.4f}",    "cc")
-    rows += _trow("Total Gas @ std",          f"{res.total_V_gas_std_unit:.6f}",  gas_unit)
-    rows += _trow("Cylinder Mix Ratio",       f"{res.cylinder_mix_ratio:.6f}",    f"cc gas @ recomb / cc {oil_label.lower()}")
+    rows += _trow(f"{oil_label} at P_recomb ⭐", f"{res.V_oil_sep:.4f}",          "cc  ← charge this amount")
+    rows += _trow("STO Oil Equiv.",              f"{res.V_oil_STO:.4f}",           "cc")
+    rows += _trow("Total Gas @ recomb",          f"{res.total_V_gas_recomb_cc:.4f}", "cc")
+    rows += _trow("Total Gas @ std",             f"{res.total_V_gas_std_cc:.4f}",  "cc")
+    rows += _trow("Total Gas @ std",             f"{res.total_V_gas_std_unit:.6f}", gas_unit)
+    rows += _trow("Cylinder Mix Ratio",          f"{res.cylinder_mix_ratio:.6f}",  f"cc gas @ recomb / cc {oil_label.lower()}")
 
     rows += _tsect("VERIFICATION")
     rows += _trow("Sep. GOR (input)",       f"{res.R_total_input:.4f}",    gor_unit)
     if res.oil_source == "stock_tank":
-        rows += _trow("STO GOR (input)",    f"{res.R_STO_input:.4f}",     gor_unit)
-        rows += _trow("Total GOR (eff.)",   f"{R_total_eff_input:.4f}",   gor_unit)
+        rows += _trow("Flash Factor FF",    f"{res.FF_input:.4f}",        gor_unit)
+        rows += _trow("Total Rp (sep+FF)",  f"{R_total_eff_input:.4f}",   gor_unit)
     rows += _trow("GOR (back-calc.)",       f"{res.GOR_check:.4f}",        gor_unit)
     rows += _trow("GOR match error",        f"{gor_err_pct:.5f}",          "%")
 
