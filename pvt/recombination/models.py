@@ -1,6 +1,26 @@
 """
 pvt/recombination/models.py — Input / output data models for separator
 recombination calculations.  Pure dataclasses; no calculation logic.
+
+Nomenclature follows Carlsen & Whitson (IPTC-19775, 2020) and the Whitson manual:
+
+  SF   — Separator-Oil Shrinkage Factor = V_STO / V_sep_oil  (range 0.65–0.99)
+           Equivalent to 1/Bo_sep where Bo_sep = oil FVF at separator conditions.
+
+  FF   — Separator-Oil Flash Factor = scf flash gas liberated per STB_STO
+           (gas that comes out of solution when separator oil is brought to
+           stock-tank / standard conditions). This is the solution GOR of the
+           separator oil (Rs_sep), expressed per STB STO.
+
+  Rp,sep — Measured separator GOR in scf per STB separator oil (metered).
+           In our convention the per-stage GOR input (SeparatorStage.R) is in
+           scf/STB where the STB denominator is stock-tank oil (STO), i.e.
+           R = Rp,sep / SF (already shrinkage-corrected). See calc.py for details.
+
+  Rp   — Total producing GOR at stock-tank conditions:
+           Rp = sum(R_stage) + FF        [both terms per STB STO]
+         In Whitson notation with raw measured GOR per sep barrel:
+           Rp = Rp,sep / SF + FF         [Carlsen & Whitson eq.]
 """
 
 from dataclasses import dataclass
@@ -13,8 +33,13 @@ from pvt.constants import Units
 
 @dataclass
 class SeparatorStage:
-    """Conditions and GOR for one separator stage."""
-    R:     float        # scf/STB (field) or sm³/sm³ (SI)
+    """Conditions and GOR for one separator stage.
+
+    R is the stage GOR in the input unit system:
+      - field: scf/STB  (STB = stock-tank barrel, i.e. STO-referenced)
+      - SI:    sm³/sm³  (both volumes at standard conditions)
+    """
+    R:     float        # scf/STB STO (field) or sm³/sm³ (SI)
     P:     float        # psia (field) or bara (SI)
     T:     float        # °F (field) or °C (SI)
     Z:     float        # gas compressibility factor (dimensionless)
@@ -26,8 +51,8 @@ class StageResult:
     """Per-stage output from a recombination calculation."""
     stage_num:          int
     label:              str
-    R_input:            float   # GOR in input units
-    R_cc:               float   # GOR in cc/cc
+    R_input:            float   # GOR in input units (scf/STB STO or sm³/sm³)
+    R_cc:               float   # GOR in cc gas_std / cc STO
     V_gas_std_cc:       float   # cc @ standard conditions
     V_gas_std_unit:     float   # scf (field) or sm³ (SI) @ standard conditions
     V_gas_sep:          float   # cc @ separator P and T
@@ -36,45 +61,50 @@ class StageResult:
     T_R:                float   # separator temperature in Rankine (internal)
     T_F:                float   # separator temperature in °F (display)
     Z:                  float
-    pct_of_total:       float   # % of total solution GOR (including STO) from this stage
+    pct_of_total:       float   # % of total producing GOR (Rp) from this stage
 
 
 @dataclass
 class MultiStageResults:
-    """Full output from a multi-stage separator recombination calculation."""
+    """Full output from a multi-stage separator recombination calculation.
+
+    Key industry-standard quantities:
+      SF              — Separator-Oil Shrinkage Factor (V_STO / V_sep_oil)
+      FF_input/FF_cc  — Flash Factor (gas liberated per STB STO, i.e. Rs_sep)
+      Rp_total_cc     — Total producing GOR at STO basis (cc gas_std / cc STO)
+    """
     # ── Inputs echoed back ───────────────────────────────────────────────────
     V_live:                float   # cc — target live fluid volume
     # ── Oil volumes ──────────────────────────────────────────────────────────
-    V_oil_sep:             float   # cc — oil to charge at recomb P (sep oil for Case 1, STO for Case 2)
+    V_oil_sep:             float   # cc — oil to charge (sep oil for Case 1, STO for Case 2)
     V_oil_STO:             float   # cc — stock-tank oil equivalent
-    # ── Gas volumes (separator stages) ───────────────────────────────────────
+    # ── Gas volumes (separator stages + flash) ───────────────────────────────
     stage_results:         list    # list[StageResult]
-    total_V_gas_std_cc:    float   # cc @ std — all gas (sep stages + STO flash)
+    total_V_gas_std_cc:    float   # cc @ std — all gas (sep stages + flash)
     total_V_gas_std_unit:  float   # scf or sm³ — all gas
     total_V_gas_recomb_cc: float   # cc @ recombination P & T — all gas
     # ── GOR summary ──────────────────────────────────────────────────────────
-    R_total_input:         float   # total separator-stage GOR in input units
-    R_total_cc:            float   # total separator-stage GOR in cc/cc
-    GOR_check:             float   # back-calculated GOR (input units) — for verification
+    R_total_input:         float   # sum of separator-stage GOR in input units (per STO)
+    R_total_cc:            float   # sum of separator-stage GOR in cc/cc (per STO)
+    Rp_total_cc:           float   # total producing GOR = R_total_cc + FF_cc (cc/cc, per STO)
+    GOR_check:             float   # back-calculated total GOR (input units) — for verification
     # ── Cylinder mix ratio ───────────────────────────────────────────────────
-    cylinder_mix_ratio:    float   # cc gas @ recomb P&T per cc oil
+    cylinder_mix_ratio:    float   # cc gas @ recomb P&T per cc oil charged
     # ── Recombination conditions ─────────────────────────────────────────────
     P_recomb_psia:         float
     T_recomb_F:            float
     T_recomb_R:            float
     Z_recomb:              float
-    # ── Oil source & charging conditions ─────────────────────────────────────
+    factor_recomb:         float   # (P_std/P_recomb)·(T_recomb_R/T_std_R)·Z — cc gas recomb / cc gas std
+    # ── Oil source & shrinkage ────────────────────────────────────────────────
     oil_source:            str     # "separator" | "stock_tank"
-    P_charge_oil_psia:     float   # oil charging pressure (psia)
-    V_oil_charge:          float   # oil volume at charging conditions (cc) — what the tech measures
-    c_o:                   float   # oil compressibility used (psi^-1)
-    # ── Stock tank flash (Case 2 only; 0.0 for Case 1) ───────────────────────
-    R_STO_input:           float   # stock tank GOR in input units
-    R_STO_cc:              float   # stock tank GOR in cc/cc
-    shrinkage_factor:      float   # R_STO_cc / R_sep_total_cc (per user convention: R_sep × SF = R_STO)
-    V_STO_gas_std_cc:      float   # STO flash gas @ std conditions (cc)
-    V_STO_gas_std_unit:    float   # STO flash gas @ std (scf or sm³)
-    V_STO_gas_recomb_cc:   float   # STO flash gas @ recomb P&T (cc)
+    SF:                    float   # Separator-Oil Shrinkage Factor = V_STO/V_sep_oil = 1/Bo_sep
+    # ── Flash Factor / Stock-tank gas (Case 2 only; 0.0 for Case 1) ─────────
+    FF_input:              float   # Flash Factor in input units (scf/STB STO or sm³/sm³)
+    FF_cc:                 float   # Flash Factor in cc gas_std / cc STO
+    V_FF_gas_std_cc:       float   # flash gas volume @ std conditions (cc)
+    V_FF_gas_std_unit:     float   # flash gas volume @ std (scf or sm³)
+    V_FF_gas_recomb_cc:    float   # flash gas volume @ recomb P&T (cc)
     # ── Metadata ─────────────────────────────────────────────────────────────
     units:                 Units
 
