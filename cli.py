@@ -81,8 +81,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="Recombination (charging) temperature (°F or °C)")
     gc.add_argument("--z_recomb", type=float, default=1.0, metavar="Z",
                     help="Z-factor of gas at recombination P & T (default: 1.0)")
-    gc.add_argument("--bo_sep",   type=float, default=1.00,  metavar="BO",
-                    help="Oil FVF at separator conditions (default: 1.00)")
+    gc.add_argument("--sf",       type=float, default=1.00,  metavar="SF",
+                    help="Separator-Oil Shrinkage Factor SF = V_STO/V_sep_oil (0 < SF ≤ 1, default: 1.00)")
     gc.add_argument("--stages",   type=int,   default=1, choices=[1, 2, 3],
                     metavar="{1,2,3}",
                     help="Number of separator stages (default: 1)")
@@ -172,7 +172,7 @@ def main() -> int:
 
     # ── Validate ─────────────────────────────────────────────────────────────
     errors = validate_multistage(
-        stages, args.v_live, args.bo_sep,
+        stages, args.v_live, args.sf,
         args.p_recomb, args.t_recomb, args.z_recomb, units,
     )
     if errors:
@@ -182,7 +182,7 @@ def main() -> int:
 
     # ── Calculate ────────────────────────────────────────────────────────────
     res = calculate_multistage(
-        stages, args.v_live, args.bo_sep,
+        stages, args.v_live, args.sf,
         args.p_recomb, args.t_recomb, args.z_recomb, units,
     )
 
@@ -234,7 +234,7 @@ def main() -> int:
 
     lines.append(_section("SETUP"))
     lines.append(_row("Live Fluid Volume",  f"{args.v_live:,.2f} cc"))
-    lines.append(_row("Bo (separator)",     f"{args.bo_sep:.4f} res vol/STO vol"))
+    lines.append(_row("SF (Shrinkage Factor)",  f"{args.sf:.4f}  V_STO / V_sep_oil"))
     lines.append(_row("No. of Stages",      str(args.stages)))
     lines.append(_row("Units",              units))
 
