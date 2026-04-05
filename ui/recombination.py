@@ -26,35 +26,35 @@ _EXAMPLES: dict[str, dict | None] = {
     "— select an example —": None,
     "Light oil, North Sea (high GOR)": {
         "units": "field", "v_live": 2000.0, "sf": 0.92,
-        "p_recomb": 5014.73, "t_recomb": 70.0, "z_recomb": 1.00,
+        "p_recomb": 5000.0, "t_recomb": 70.0, "z_recomb": 1.00,
         "r_sep_1": 850.0, "p_sep_1": 800.0, "t_sep_1": 140.0, "z_sep_1": 0.865,
         "show_pb": True, "gamma_g": 0.72, "api_gravity": 42.0, "t_res": 210.0,
         "oil_source": "separator", "ff": 0.0,
-        "p_charge_oil": 14.696,
+        "p_charge_oil": 2000.0,
     },
     "Medium oil, Middle East (moderate GOR)": {
         "units": "field", "v_live": 2000.0, "sf": 0.95,
-        "p_recomb": 5014.73, "t_recomb": 70.0, "z_recomb": 1.00,
+        "p_recomb": 5000.0, "t_recomb": 70.0, "z_recomb": 1.00,
         "r_sep_1": 583.0, "p_sep_1": 150.0, "t_sep_1": 120.0, "z_sep_1": 0.921,
         "show_pb": True, "gamma_g": 0.76, "api_gravity": 34.0, "t_res": 175.0,
         "oil_source": "separator", "ff": 0.0,
-        "p_charge_oil": 14.696,
+        "p_charge_oil": 2000.0,
     },
     "Heavy oil, Offshore (low GOR)": {
         "units": "field", "v_live": 2000.0, "sf": 0.97,
-        "p_recomb": 5014.73, "t_recomb": 70.0, "z_recomb": 1.00,
+        "p_recomb": 5000.0, "t_recomb": 70.0, "z_recomb": 1.00,
         "r_sep_1": 100.0, "p_sep_1":  60.0, "t_sep_1": 100.0, "z_sep_1": 0.972,
         "show_pb": True, "gamma_g": 0.82, "api_gravity": 22.0, "t_res": 155.0,
         "oil_source": "separator", "ff": 0.0,
-        "p_charge_oil": 14.696,
+        "p_charge_oil": 2000.0,
     },
     "Stock tank oil example (Case 2 — with Flash Factor)": {
         "units": "field", "v_live": 2000.0, "sf": 0.88,
-        "p_recomb": 5014.73, "t_recomb": 70.0, "z_recomb": 1.00,
+        "p_recomb": 5000.0, "t_recomb": 70.0, "z_recomb": 1.00,
         "r_sep_1": 400.0, "p_sep_1": 250.0, "t_sep_1": 100.0, "z_sep_1": 0.910,
         "show_pb": True, "gamma_g": 0.74, "api_gravity": 36.0, "t_res": 180.0,
         "oil_source": "stock_tank", "ff": 60.0,
-        "p_charge_oil": 14.696,
+        "p_charge_oil": 2000.0,
     },
 }
 
@@ -83,8 +83,8 @@ _SS_DEFAULTS: dict = {
     "units": "field", "_units_prev": "field",
     "v_live": 2000.0,
     "sf": 0.95,                  # Separator-Oil Shrinkage Factor (V_STO / V_sep_oil)
-    "p_recomb": 5014.73, "t_recomb": 70.0, "z_recomb": 1.00,
-    "p_charge_oil": 14.696,      # Pressure at which oil is loaded into cell (psia)
+    "p_recomb": 5000.0, "t_recomb": 70.0, "z_recomb": 1.00,
+    "p_charge_oil": 2000.0,      # Pressure at which oil is loaded into cell (psia)
     "r_sep_1": 583.0, "p_sep_1": 150.0, "t_sep_1": 120.0, "z_sep_1": 0.921,
     "show_pb": True, "gamma_g": 0.76, "api_gravity": 34.0, "t_res": 175.0,
     "example_sel": "— select an example —",
