@@ -30,7 +30,7 @@ _EXAMPLES: dict[str, dict | None] = {
         "r_sep_1": 850.0, "p_sep_1": 800.0, "t_sep_1": 140.0, "z_sep_1": 0.865,
         "show_pb": True, "gamma_g": 0.72, "api_gravity": 42.0, "t_res": 210.0,
         "oil_source": "separator", "ff": 0.0,
-        "p_charge_oil": 14.696, "c_o": 10.0,
+        "p_charge_oil": 14.696,
     },
     "Medium oil, Middle East (moderate GOR)": {
         "units": "field", "v_live": 2000.0, "sf": 0.95,
@@ -38,7 +38,7 @@ _EXAMPLES: dict[str, dict | None] = {
         "r_sep_1": 583.0, "p_sep_1": 150.0, "t_sep_1": 120.0, "z_sep_1": 0.921,
         "show_pb": True, "gamma_g": 0.76, "api_gravity": 34.0, "t_res": 175.0,
         "oil_source": "separator", "ff": 0.0,
-        "p_charge_oil": 14.696, "c_o": 10.0,
+        "p_charge_oil": 14.696,
     },
     "Heavy oil, Offshore (low GOR)": {
         "units": "field", "v_live": 2000.0, "sf": 0.97,
@@ -46,7 +46,7 @@ _EXAMPLES: dict[str, dict | None] = {
         "r_sep_1": 100.0, "p_sep_1":  60.0, "t_sep_1": 100.0, "z_sep_1": 0.972,
         "show_pb": True, "gamma_g": 0.82, "api_gravity": 22.0, "t_res": 155.0,
         "oil_source": "separator", "ff": 0.0,
-        "p_charge_oil": 14.696, "c_o": 10.0,
+        "p_charge_oil": 14.696,
     },
     "Stock tank oil example (Case 2 — with Flash Factor)": {
         "units": "field", "v_live": 2000.0, "sf": 0.88,
@@ -54,7 +54,7 @@ _EXAMPLES: dict[str, dict | None] = {
         "r_sep_1": 400.0, "p_sep_1": 250.0, "t_sep_1": 100.0, "z_sep_1": 0.910,
         "show_pb": True, "gamma_g": 0.74, "api_gravity": 36.0, "t_res": 180.0,
         "oil_source": "stock_tank", "ff": 60.0,
-        "p_charge_oil": 14.696, "c_o": 10.0,
+        "p_charge_oil": 14.696,
     },
 }
 
@@ -85,7 +85,6 @@ _SS_DEFAULTS: dict = {
     "sf": 0.95,                  # Separator-Oil Shrinkage Factor (V_STO / V_sep_oil)
     "p_recomb": 5014.73, "t_recomb": 70.0, "z_recomb": 1.00,
     "p_charge_oil": 14.696,      # Pressure at which oil is loaded into cell (psia)
-    "c_o": 10.0,                 # Oil compressibility × 10⁶ (stored as 10 → 10×10⁻⁶ psi⁻¹)
     "r_sep_1": 583.0, "p_sep_1": 150.0, "t_sep_1": 120.0, "z_sep_1": 0.921,
     "show_pb": True, "gamma_g": 0.76, "api_gravity": 34.0, "t_res": 175.0,
     "example_sel": "— select an example —",
@@ -281,23 +280,11 @@ def _render_sidebar() -> None:
             step=5.0 if units == "field" else 0.2,
             key="p_charge_oil",
             help=(
-                "Pressure at which the oil is physically loaded into the recombination cell. "
-                "The oil is typically charged first at a lower pressure (atmospheric or "
-                "slightly above), then gas is added at recombination conditions to bring "
-                "the cell to target pressure.\n\n"
-                "The oil volume at P_charge ≠ oil volume at P_recomb — the difference "
-                "is corrected using oil isothermal compressibility (c_o)."
-            ),
-        )
-        st.number_input(
-            "Oil Compressibility c_o (× 10⁻⁶ psi⁻¹)",
-            min_value=1.0, max_value=200.0, step=1.0, format="%.1f",
-            key="c_o",
-            help=(
-                "Isothermal compressibility of the oil at charging conditions.\n\n"
-                "Used to correct the oil volume from P_charge to P_recomb:\n"
-                "V_at_Precomb = V_at_Pcharge × (1 + c_o × ΔP)\n\n"
-                "Typical values: 5 – 40 × 10⁻⁶ psi⁻¹  (default: 10 × 10⁻⁶)"
+                "Pressure at which the oil is physically loaded into the recombination cell.\n\n"
+                "Oil is charged first (at this pressure), then separator gas is added "
+                "at recombination pressure to bring the cell to target conditions.\n\n"
+                "The volume to load is V_oil_sep (computed from the GOR / SF framework) — "
+                "no separate compressibility correction is needed."
             ),
         )
         st.markdown("---")
@@ -368,7 +355,6 @@ def _render_content() -> None:
     oil_source  = ss.get("oil_source",  "separator")
     ff          = ss.get("ff",          0.0)    # Flash Factor (Case 2 only)
     p_charge    = ss.get("p_charge_oil", 14.696)
-    c_o_x1e6   = ss.get("c_o",          10.0)  # stored as 10 → means 10×10⁻⁶
     n_stages    = 1                              # always 1 separator stage
 
     stages = [
@@ -403,14 +389,9 @@ def _render_content() -> None:
     temp_unit = "°F"      if units == "field" else "°C"
     gas_unit  = "scf"     if units == "field" else "sm³"
 
-    # ── Oil charging volume correction ─────────────────────────────────────
-    # Oil is loaded into the cell at P_charge (lower pressure), then gas is added
-    # at P_recomb. The volume the engineer actually measures out is V_oil_charge.
-    # V_oil_sep is the oil volume at final recomb conditions (from SF/FF calc).
+    # ── Oil charging pressure (informational — no compressibility correction) ──
+    # SF/FF framework gives V_oil_sep directly; that is the volume the engineer loads.
     p_charge_psia = p_charge if units == "field" else p_charge * BARA_TO_PSIA
-    c_o           = c_o_x1e6 * 1.0e-6
-    delta_P       = max(0.0, res.P_recomb_psia - p_charge_psia)
-    V_oil_charge  = res.V_oil_sep * (1.0 + c_o * delta_P)
 
     # GOR error: compare GOR_check (back-calc) against total Rp = R_sep + FF
     R_total_eff_input = res.R_total_input + res.FF_input   # Case 1: FF_input=0 so same as R_total_input
@@ -452,7 +433,7 @@ def _render_content() -> None:
 
     # ── Hero charge card ──────────────────────────────────────────────────────
     st.markdown(
-        C.hero_card(res, v_live, V_oil_charge, p_charge_psia,
+        C.hero_card(res, v_live, p_charge_psia,
                     gor_unit, gas_unit, gor_err_pct, R_total_eff_input, pres_unit),
         unsafe_allow_html=True,
     )
@@ -462,7 +443,7 @@ def _render_content() -> None:
         C.bubble_point_metric_card(Pb_disp, Pb_unit)
         if show_pb else ""
     )
-    st.markdown(C.metric_cards_row(res, V_oil_charge, gor_unit, pb_metric), unsafe_allow_html=True)
+    st.markdown(C.metric_cards_row(res, gor_unit, pb_metric), unsafe_allow_html=True)
 
     # ── Bubble point card (expanded) ─────────────────────────────────────────
     if show_pb:
@@ -550,21 +531,6 @@ def _render_content() -> None:
             unsafe_allow_html=True,
         )
 
-        charge_diff_pct = (V_oil_charge / res.V_oil_sep - 1.0) * 100.0 if res.V_oil_sep > 0 else 0.0
-        st.markdown(
-            C.calc_step(
-                "Step 2b — Actual oil volume to load at P_charge (compressibility correction)",
-                f"ΔP = P_recomb − P_charge = {res.P_recomb_psia:.1f} − {p_charge_psia:.1f} psi"
-                f" = {delta_P:.1f} psi<br>"
-                f"V_oil_charge = V_oil_sep × (1 + c_o × ΔP)"
-                f" = {res.V_oil_sep:.2f} × (1 + {c_o_x1e6:.1f}×10⁻⁶ × {delta_P:.1f})"
-                f" = <b>{V_oil_charge:.2f} cc  ← load this amount at {p_charge:.1f} {pres_unit}</b>"
-                f"<br><em>({charge_diff_pct:+.3f}% larger than oil volume at P_recomb — "
-                f"oil expands when pressure drops from P_recomb to P_charge)</em>",
-            ),
-            unsafe_allow_html=True,
-        )
-
         step_offset = 3
         for sr in res.stage_results:
             gor_conv = (
@@ -644,8 +610,7 @@ def _render_content() -> None:
                 n_stages=n_stages, gor_unit=gor_unit, pres_unit=pres_unit,
                 temp_unit=temp_unit, gas_unit=gas_unit, gor_err_pct=gor_err_pct,
                 R_total_eff_input=R_total_eff_input,
-                V_oil_charge=V_oil_charge, p_charge_psia=p_charge_psia,
-                c_o_x1e6=c_o_x1e6,
+                p_charge_psia=p_charge_psia,
                 show_pb=show_pb, Pb_disp=Pb_disp, Pb_lo=Pb_lo, Pb_hi=Pb_hi,
                 Pb_unit=Pb_unit, gamma_g=gamma_g, api_gravity=api_gravity,
                 T_for_pb=T_for_pb,
