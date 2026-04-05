@@ -253,7 +253,6 @@ def process_diagram(
 def hero_card(
     res:               MultiStageResults,
     v_live:            float,
-    V_oil_charge:      float,
     p_charge_psia:     float,
     gor_unit:          str,
     gas_unit:          str,
@@ -261,7 +260,7 @@ def hero_card(
     R_total_eff_input: float,
     pres_unit:         str,
 ) -> str:
-    """Detailed charge-instructions hero card (shown below the ASCII summary)."""
+    """Detailed charge-instructions hero card."""
     gor_check_str = (
         f"{res.GOR_check:.1f} {gor_unit} ✓"
         if gor_err_pct < 0.1
@@ -269,23 +268,20 @@ def hero_card(
     )
     oil_label = "STO oil" if res.oil_source == "stock_tank" else "separator oil"
 
-    # ── Oil rows: charge volume (at P_charge) + recomb volume + STO equiv ────
-    charge_diff_pct = (V_oil_charge / res.V_oil_sep - 1.0) * 100.0 if res.V_oil_sep > 0 else 0.0
+    # ── Oil row: volume to load (SF/FF gives this directly; no c_o correction) ─
     oil_row = (
-        # Primary — what the engineer actually measures and loads
         f'<div class="charge-row"><div>'
-        f'<span class="charge-val" style="color:#7fffb8;">{V_oil_charge:,.1f}</span>'
+        f'<span class="charge-val" style="color:#7fffb8;">{res.V_oil_sep:,.1f}</span>'
         f'<span class="charge-unit">cc {oil_label}</span>'
         f'<div class="charge-label" style="color:#a0f0c8;font-weight:600;">'
         f'⭐ LOAD at P_charge = {p_charge_psia:.1f} {pres_unit}'
-        f' &nbsp;·&nbsp; will compress to {res.V_oil_sep:.1f} cc at P_recomb'
-        f' ({charge_diff_pct:+.2f}%)</div>'
+        f'</div>'
         f'</div></div>'
-        # Secondary — STO equivalent
+        # STO equivalent (for reference)
         f'<div class="charge-row" style="opacity:0.72;"><div>'
         f'<span class="charge-val" style="font-size:1.2rem;">{res.V_oil_STO:,.1f}</span>'
         f'<span class="charge-unit">cc STO equivalent</span>'
-        f'<div class="charge-label">Stock-tank oil · SF = {res.SF:.4f}</div>'
+        f'<div class="charge-label">SF = {res.SF:.4f}</div>'
         f'</div></div>'
     )
 
@@ -372,13 +368,12 @@ def metric_card(value: str, unit: str, label: str, accent: bool = False) -> str:
 
 def metric_cards_row(
     res:          MultiStageResults,
-    V_oil_charge: float,
     gor_unit:     str,
     pb_html:      str = "",
 ) -> str:
-    oil_label = "STO Oil — load at P_charge" if res.oil_source == "stock_tank" else "Oil — load at P_charge"
+    oil_label = "STO Oil" if res.oil_source == "stock_tank" else "Sep. Oil"
     cards = (
-        metric_card(f"{V_oil_charge:,.1f}",                "cc @ P_charge",  oil_label,             accent=True)
+        metric_card(f"{res.V_oil_sep:,.1f}",               "cc  (load this)", oil_label,             accent=True)
         + metric_card(f"{res.total_V_gas_recomb_cc:,.1f}", "cc @ recomb",    "Gas to Charge",        accent=True)
         + metric_card(f"{res.cylinder_mix_ratio:.4f}",     "cc/cc",          "Mix Ratio")
         + metric_card(f"{res.total_V_gas_std_cc:,.1f}",   "cc @ std",       "Total Gas @ Std")
@@ -537,9 +532,7 @@ def lab_report_table(
     gas_unit:          str,
     gor_err_pct:       float,
     R_total_eff_input: float = 0.0,
-    V_oil_charge:      float = 0.0,
     p_charge_psia:     float = 14.696,
-    c_o_x1e6:         float = 10.0,
     show_pb:           bool  = False,
     Pb_disp:           float = 0.0,
     Pb_lo:             float = 0.0,
@@ -569,9 +562,7 @@ def lab_report_table(
     oil_label = "STO Oil" if res.oil_source == "stock_tank" else "Separator Oil"
     rows += _tsect("OIL CHARGING CONDITIONS")
     rows += _trow("Oil Charging Pressure",    f"{p_charge_psia:.2f}",     "psia")
-    rows += _trow("Oil Compressibility c_o",  f"{c_o_x1e6:.1f} × 10⁻⁶", "psi⁻¹")
-    rows += _trow(f"{oil_label} to Load ⭐",  f"{V_oil_charge:.4f}",      "cc  ← charge this volume at P_charge")
-    rows += _trow(f"{oil_label} at P_recomb", f"{res.V_oil_sep:.4f}",     "cc  (after pressure rise to P_recomb)")
+    rows += _trow(f"{oil_label} to Load ⭐",  f"{res.V_oil_sep:.4f}",     "cc  ← charge this volume at P_charge")
     rows += _trow("STO Oil Equivalent",       f"{res.V_oil_STO:.4f}",     "cc")
 
     for sr in res.stage_results:
