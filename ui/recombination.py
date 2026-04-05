@@ -58,6 +58,27 @@ _EXAMPLES: dict[str, dict | None] = {
     },
 }
 
+# ASCII process-flow diagrams — rendered in the pvt-ascii monospace block.
+# Case 1: separator oil goes directly to cell.
+# Case 2: oil passes through stock tank (SF/FF shrinkage), then STO to cell.
+_DIAGRAMS: dict[str, str] = {
+    "separator": """\
+  ┌────────────┐  gas ──────────────────►┐
+  │ SEPARATOR  │                 ┌───────▼──────┐
+  │ P1, T1, Z1 │                 │  CELL        │
+  └─────┬──────┘  oil ──────────►│  ░░ GAS ░░░ │
+        └────────────────────────►  ▓▓ OIL ▓▓▓ │
+                                 └──────────────┘""",
+    "stock_tank": """\
+  ┌────────────┐  gas ─────────────────────────►┐
+  │ SEPARATOR  │                       ┌────────▼─────┐
+  │ P1, T1, Z1 │   ┌─────────────────┐  │  CELL        │
+  └─────┬──────┘   │   STOCK TANK    │  │  ░░ GAS ░░░ │
+        └─────────►│  P_atm  SF  FF  ├─►│  ▓▓ STO ▓▓▓ │
+                   │  ↑ STO gas vent │  └──────────────┘
+                   └─────────────────┘""",
+}
+
 _SS_DEFAULTS: dict = {
     "units": "field", "_units_prev": "field",
     "v_live": 2000.0,
@@ -422,14 +443,10 @@ def _render_content() -> None:
         unsafe_allow_html=True,
     )
 
-    # ── Volume summary (ASCII) ───────────────────────────────────────────────
+    # ── ASCII cell diagram ───────────────────────────────────────────────────
+    st.markdown(C.section_label("Cell Diagram"), unsafe_allow_html=True)
     st.markdown(
-        C.volume_summary_card(
-            res=res, v_live=v_live,
-            V_oil_charge=V_oil_charge, p_charge_psia=p_charge_psia,
-            oil_source=oil_source, gor_unit=gor_unit, pres_unit=pres_unit,
-            gor_err_pct=gor_err_pct, R_total_eff_input=R_total_eff_input,
-        ),
+        f'<div class="pvt-ascii">{_DIAGRAMS[oil_source]}</div>',
         unsafe_allow_html=True,
     )
 
