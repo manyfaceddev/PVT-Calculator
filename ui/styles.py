@@ -92,16 +92,37 @@ html, body, [data-testid="stAppViewContainer"] {
 .gor-warn { color: #b03010; font-weight: 700; }
 
 /* ── sidebar ── */
-[data-testid="stSidebar"]                      { background: #0a1628; }
+[data-testid="stSidebar"]                                       { background: #0a1628; }
 [data-testid="stSidebar"] .stMarkdown p,
-[data-testid="stSidebar"] label                { color: #c0d8f0 !important; }
+[data-testid="stSidebar"] label                                 { color: #c0d8f0 !important; }
 [data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3                   { color: #60b0e0 !important; }
-[data-testid="stSidebar"] hr                   { border-color: #1a3a6b; }
+[data-testid="stSidebar"] h3                                    { color: #60b0e0 !important; }
+[data-testid="stSidebar"] hr                                    { border-color: #1a3a6b; }
+
+/* radio buttons — make text and indicators visible on dark bg */
+[data-testid="stSidebar"] [data-testid="stRadio"] label         { color: #c0d8f0 !important; }
+[data-testid="stSidebar"] [data-testid="stRadio"] p             { color: #c0d8f0 !important; }
+[data-testid="stSidebar"] [role="radiogroup"] label             { color: #c0d8f0 !important; }
+[data-testid="stSidebar"] [data-baseweb="radio"] div            { border-color: #60b0e0 !important; }
+[data-testid="stSidebar"] [data-baseweb="radio"][aria-checked="true"] div
+                                                                { background: #1a6dad !important; border-color: #60b0e0 !important; }
+
+/* number inputs — ensure readable text on dark bg */
+[data-testid="stSidebar"] input[type="number"]                  { color: #0a1628 !important; background: #e8f2fd !important; border: 1px solid #4a7aad !important; border-radius: 6px; }
+[data-testid="stSidebar"] div[data-testid="stNumberInput"] input{ color: #0a1628 !important; background: #e8f2fd !important; }
+
+/* select/dropdown on sidebar */
+[data-testid="stSidebar"] [data-testid="stSelectbox"] div       { color: #c0d8f0 !important; }
+[data-testid="stSidebar"] [data-testid="stSelectbox"] span      { color: #c0d8f0 !important; }
+
+/* toggle / checkbox */
+[data-testid="stSidebar"] [data-testid="stCheckbox"] label      { color: #c0d8f0 !important; }
+[data-testid="stSidebar"] [data-testid="stToggle"] label        { color: #c0d8f0 !important; }
+[data-testid="stSidebar"] [data-testid="stToggle"] p            { color: #c0d8f0 !important; }
 
 /* ── mobile touch targets ── */
-input[type="number"]                           { font-size: 1rem !important; min-height: 44px; }
-div[data-testid="stNumberInput"] input         { font-size: 1rem !important; }
+input[type="number"]                                            { font-size: 1rem !important; min-height: 44px; }
+div[data-testid="stNumberInput"] input                          { font-size: 1rem !important; }
 </style>
 """
 
