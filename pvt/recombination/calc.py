@@ -42,6 +42,7 @@ from pvt.constants import (
     SCF_TO_CC, CC_TO_SM3, SCF_STB_TO_CC_CC,
     BARA_TO_PSIA,
 )
+import math
 from pvt.recombination.models import (
     RecombinationInputs, RecombinationResults,
     SeparatorStage, StageResult, MultiStageResults,
@@ -120,6 +121,8 @@ def calculate_multistage(
     units:      str,
     oil_source: str   = "separator",  # "separator" | "stock_tank"
     FF:         float = 0.0,          # Flash Factor (scf/STB STO or sm³/sm³); Case 2 only
+    p_charge:   float = 14.7,         # Oil charging pressure (psia or bara)
+    c_o:        float = 0.0,          # Oil compressibility (1/psia or 1/bara)
 ) -> MultiStageResults:
     """
     Multi-stage separator recombination with explicit recombination conditions.
@@ -147,10 +150,11 @@ def calculate_multistage(
        Equivalently: mix_ratio = Rp_cc × factor_recomb × Bo_sep_eff
        where Bo_sep_eff = 1/SF for Case 1, 1.0 for Case 2.
     5. V_oil_STO = V_live / (1 + cylinder_mix_ratio)  — guarantees exact volume balance.
-    6. V_oil_sep = V_oil_STO / SF  [Case 1, volume the tech charges]
-       V_oil_sep = V_oil_STO       [Case 2, STO is charged directly]
-    7. Per-stage: gas volumes at std, separator, and recombination conditions.
-    8. Flash gas volumes [Case 2]: all attributed to separator gas cylinder.
+    6. V_oil_sep = V_oil_STO / SF  [Case 1, volume at recomb P]
+       V_oil_sep = V_oil_STO       [Case 2, STO at recomb P]
+    7. V_oil_charge = V_oil_sep × exp(c_o × (p_charge - P_recomb))  [volume at charge P]
+    8. Per-stage: gas volumes at std, separator, and recombination conditions.
+    9. Flash gas volumes [Case 2]: all attributed to separator gas cylinder.
     """
     # ── Recombination conditions → internal units ────────────────────────────
     if units == "field":
@@ -164,6 +168,10 @@ def calculate_multistage(
 
     # factor_recomb: cc gas @ recomb per cc gas @ standard conditions
     factor_recomb = (P_STD_PSIA / P_recomb_psia) * (T_recomb_R / T_STD_R) * Z_recomb
+
+    # ── Charging pressure and compressibility → internal units ──────────────
+    p_charge_psia = p_charge if units == "field" else p_charge * BARA_TO_PSIA
+    c_o_psia      = c_o      if units == "field" else c_o / BARA_TO_PSIA
 
     # ── Flash Factor (Case 2) → cc/cc ────────────────────────────────────────
     if oil_source == "stock_tank":
@@ -206,6 +214,9 @@ def calculate_multistage(
     cylinder_mix_ratio = Rp_total_cc * factor_recomb / Bo_sep_eff
     V_oil_sep          = V_live / (1.0 + cylinder_mix_ratio)
     V_oil_STO          = V_oil_sep * SF if oil_source == "separator" else V_oil_sep
+
+    # ── Oil volume at charging pressure ───────────────────────────────────────
+    V_oil_charge = V_oil_sep * math.exp(c_o_psia * (p_charge_psia - P_recomb_psia))
 
     # ── Per-stage separator gas volumes ───────────────────────────────────────
     stage_results: list[StageResult] = []
@@ -280,6 +291,7 @@ def calculate_multistage(
     return MultiStageResults(
         V_live=V_live,
         V_oil_sep=V_oil_sep,
+        V_oil_charge=V_oil_charge,
         V_oil_STO=V_oil_STO,
         stage_results=stage_results,
         total_V_gas_std_cc=total_V_gas_std_cc,

@@ -76,7 +76,8 @@ class MultiStageResults:
     # ── Inputs echoed back ───────────────────────────────────────────────────
     V_live:                float   # cc — target live fluid volume
     # ── Oil volumes ──────────────────────────────────────────────────────────
-    V_oil_sep:             float   # cc — oil to charge (sep oil for Case 1, STO for Case 2)
+    V_oil_sep:             float   # cc — oil volume at recombination pressure
+    V_oil_charge:          float   # cc — oil volume at charging pressure
     V_oil_STO:             float   # cc — stock-tank oil equivalent
     # ── Gas volumes (separator stages + flash) ───────────────────────────────
     stage_results:         list    # list[StageResult]
@@ -89,7 +90,7 @@ class MultiStageResults:
     Rp_total_cc:           float   # total producing GOR = R_total_cc + FF_cc (cc/cc, per STO)
     GOR_check:             float   # back-calculated total GOR (input units) — for verification
     # ── Cylinder mix ratio ───────────────────────────────────────────────────
-    cylinder_mix_ratio:    float   # cc gas @ recomb P&T per cc oil charged
+    cylinder_mix_ratio:    float   # cc gas @ recomb P&T per cc oil at recomb P
     # ── Recombination conditions ─────────────────────────────────────────────
     P_recomb_psia:         float
     T_recomb_F:            float
