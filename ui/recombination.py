@@ -10,6 +10,7 @@ Two oil-source cases:
   Case 2 — Stock Tank Oil + Separator Gas  (adds Flash Factor FF input)
 """
 
+import math
 import streamlit as st
 
 from pvt.constants import P_STD_PSIA, T_STD_F, T_STD_R, SCF_STB_TO_CC_CC, BARA_TO_PSIA
@@ -647,7 +648,26 @@ def _render_content() -> None:
             unsafe_allow_html=True,
         )
 
-        step_offset = 3
+        # Oil charging volume (compressibility correction)
+        p_charge_psia_display = p_charge if units == "field" else p_charge * BARA_TO_PSIA
+        c_o_display = _compute_compressibility(ss, p_charge_psia_display)
+        pressure_diff = p_charge_psia_display - res.P_recomb_psia
+        volume_ratio = math.exp(c_o_display * pressure_diff)
+        c_o_unit = "1/psia" if units == "field" else "1/bara"
+        st.markdown(
+            C.calc_step(
+                "Step 2b — Oil charging volume (isothermal compressibility correction)",
+                f"V_oil_charge = V_oil_sep × exp(c_o × (P_recomb - P_charge))<br>"
+                f"c_o @ P_charge = {c_o_display:.3e} {c_o_unit}<br>"
+                f" = {res.V_oil_sep:.2f} × exp({c_o_display:.3e} × ({res.P_recomb_psia:.1f} - {p_charge_psia_display:.1f}))<br>"
+                f" = {res.V_oil_sep:.2f} × exp({c_o_display:.3e} × {pressure_diff:.1f})<br>"
+                f" = {res.V_oil_sep:.2f} × {volume_ratio:.6f} = <b>{res.V_oil_charge:.2f} cc</b>"
+                f" <em style='color:#888'>(volume to load at P_charge)</em>",
+            ),
+            unsafe_allow_html=True,
+        )
+
+        step_offset = 4
         for sr in res.stage_results:
             gor_conv = (
                 f"{sr.R_input:.1f} scf/STB × {SCF_STB_TO_CC_CC:.6f} = <b>{sr.R_cc:.5f} cc/cc</b>"
