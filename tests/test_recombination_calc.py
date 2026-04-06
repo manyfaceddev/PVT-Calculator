@@ -356,3 +356,65 @@ class TestStageOutputs:
         sr = res.stage_results[0]
         # Recomb P (5014 psia) >> sep P (65 psia) → gas more compressed at recomb
         assert sr.V_gas_recomb_cc < sr.V_gas_sep
+
+
+# ---------------------------------------------------------------------------
+# 9. Oil compressibility
+# ---------------------------------------------------------------------------
+
+class TestOilCompressibility:
+    def test_charging_pressure_affects_charging_volume(self):
+        """Lower charging pressure should give larger charging volume due to expansion."""
+        stage = SeparatorStage(R=583, P=150, T=120, Z=0.921, label="Separator")
+        
+        # Same recombination conditions, different charging pressures
+        res_low_p  = calculate_multistage(
+            [stage], V_live=2000.0, SF=0.95, P_recomb=5000.0, T_recomb=70.0, Z_recomb=1.00, 
+            units="field", p_charge=2000.0, c_o=100e-6
+        )
+        res_high_p = calculate_multistage(
+            [stage], V_live=2000.0, SF=0.95, P_recomb=5000.0, T_recomb=70.0, Z_recomb=1.00,
+            units="field", p_charge=7000.0, c_o=100e-6
+        )
+        
+        # V_oil_sep should be the same (same recombination conditions)
+        assert res_low_p.V_oil_sep == pytest.approx(res_high_p.V_oil_sep, rel=1e-10)
+        
+        # V_oil_charge should be larger at lower charging pressure
+        assert res_low_p.V_oil_charge > res_high_p.V_oil_charge
+        
+        # At equal pressures, charging volume equals recombination volume
+        res_equal = calculate_multistage(
+            [stage], V_live=2000.0, SF=0.95, P_recomb=5000.0, T_recomb=70.0, Z_recomb=1.00,
+            units="field", p_charge=5000.0, c_o=100e-6
+        )
+        assert res_equal.V_oil_charge == pytest.approx(res_equal.V_oil_sep, rel=1e-10)
+
+    def test_zero_compressibility_gives_constant_volume(self):
+        """With c_o = 0, charging volume should equal recombination volume regardless of pressure."""
+        stage = SeparatorStage(R=583, P=150, T=120, Z=0.921, label="Separator")
+        
+        res = calculate_multistage(
+            [stage], V_live=2000.0, SF=0.95, P_recomb=5000.0, T_recomb=70.0, Z_recomb=1.00,
+            units="field", p_charge=2000.0, c_o=0.0
+        )
+        
+        # With incompressible oil, charging volume equals recombination volume
+        assert res.V_oil_charge == pytest.approx(res.V_oil_sep, rel=1e-10)
+
+    def test_compressibility_formula_correctness(self):
+        """Verify the compressibility formula matches expected physics."""
+        import math
+        
+        stage = SeparatorStage(R=583, P=150, T=120, Z=0.921, label="Separator")
+        c_o = 100e-6  # 1/psia
+        
+        res = calculate_multistage(
+            [stage], V_live=2000.0, SF=0.95, P_recomb=5000.0, T_recomb=70.0, Z_recomb=1.00,
+            units="field", p_charge=2000.0, c_o=c_o
+        )
+        
+        # Manual calculation: V_charge = V_sep * exp(c_o * (P_recomb - P_charge))
+        expected = res.V_oil_sep * math.exp(c_o * (5000.0 - 2000.0))
+        
+        assert res.V_oil_charge == pytest.approx(expected, rel=1e-10)
