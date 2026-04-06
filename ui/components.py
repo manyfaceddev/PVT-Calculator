@@ -562,7 +562,7 @@ def lab_report_table(
     oil_label = "STO Oil" if res.oil_source == "stock_tank" else "Separator Oil"
     rows += _tsect("OIL CHARGING CONDITIONS")
     rows += _trow("Oil Charging Pressure",    f"{p_charge_psia:.2f}",     "psia")
-    rows += _trow(f"{oil_label} to Load ⭐",  f"{res.V_oil_sep:.4f}",     "cc  ← charge this volume at P_charge")
+    rows += _trow(f"{oil_label} to Load ⭐",  f"{res.V_oil_charge:.4f}",  "cc  ← charge this volume at P_charge")
     rows += _trow("STO Oil Equivalent",       f"{res.V_oil_STO:.4f}",     "cc")
 
     for sr in res.stage_results:
@@ -589,7 +589,8 @@ def lab_report_table(
         rows += _trow("FF Gas @ recomb",    f"{res.V_FF_gas_recomb_cc:.4f}", "cc")
 
     rows += _tsect("CHARGE VOLUMES")
-    rows += _trow(f"{oil_label} at P_recomb ⭐", f"{res.V_oil_sep:.4f}",          "cc  ← charge this amount")
+    rows += _trow(f"{oil_label} at P_charge ⭐", f"{res.V_oil_charge:.4f}",       "cc  ← charge this amount")
+    rows += _trow(f"{oil_label} at P_recomb",   f"{res.V_oil_sep:.4f}",          "cc  (after pressure rise)")
     rows += _trow("STO Oil Equiv.",              f"{res.V_oil_STO:.4f}",           "cc")
     rows += _trow("Total Gas @ recomb",          f"{res.total_V_gas_recomb_cc:.4f}", "cc")
     rows += _trow("Total Gas @ std",             f"{res.total_V_gas_std_cc:.4f}",  "cc")

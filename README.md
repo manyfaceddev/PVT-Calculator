@@ -39,7 +39,8 @@ Given separator GOR, pressure, temperature, and gas Z-factor, the calculator tel
 
 | Output | Description |
 |--------|-------------|
-| **V_oil_sep** | Volume of separator liquid to charge into the cell (cc) |
+| **V_oil_charge** | Volume of separator liquid to charge into the cell at charging pressure (cc) |
+| **V_oil_sep** | Volume of separator liquid at recombination pressure (cc) |
 | **V_gas_std** | Volume of separator gas at standard conditions (cc and scf/sm³) |
 | **V_gas_sep** | Volume of separator gas at separator conditions (cc) — reference for gas pump |
 | **GOR check** | Back-calculated GOR to verify the charged volumes reproduce the original separator GOR |
