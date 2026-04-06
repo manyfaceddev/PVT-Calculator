@@ -10,6 +10,7 @@ Two oil-source cases:
   Case 2 — Stock Tank Oil + Separator Gas  (adds Flash Factor FF input)
 """
 
+import math
 import streamlit as st
 
 from pvt.constants import P_STD_PSIA, T_STD_F, T_STD_R, SCF_STB_TO_CC_CC, BARA_TO_PSIA
@@ -85,6 +86,9 @@ _SS_DEFAULTS: dict = {
     "sf": 0.95,                  # Separator-Oil Shrinkage Factor (V_STO / V_sep_oil)
     "p_recomb": 5000.0, "t_recomb": 70.0, "z_recomb": 1.00,
     "p_charge_oil": 2000.0,      # Pressure at which oil is loaded into cell (psia)
+    "c_o_mode": "constant",      # "constant" or "spline_fit"
+    "c_o_const": 100e-6,         # Oil compressibility for constant mode (1/psia)
+    "c_o_a0": 100e-6, "c_o_a1": 0.0, "c_o_a2": 0.0, "c_o_a3": 0.0,  # Spline fit polynomial coefficients
     "r_sep_1": 583.0, "p_sep_1": 150.0, "t_sep_1": 120.0, "z_sep_1": 0.921,
     "show_pb": True, "gamma_g": 0.76, "api_gravity": 34.0, "t_res": 175.0,
     "example_sel": "— select an example —",
@@ -139,6 +143,27 @@ def _on_units_change() -> None:
             st.session_state[key] = round(pv / BARA_TO_PSIA, 2)
         elif to_field:
             st.session_state[key] = round(pv * BARA_TO_PSIA, 1)
+
+    # Oil compressibility: constant mode
+    c_o_const = st.session_state.get("c_o_const", 100e-6)
+    if to_si:
+        st.session_state["c_o_const"] = c_o_const / BARA_TO_PSIA
+    elif to_field:
+        st.session_state["c_o_const"] = c_o_const * BARA_TO_PSIA
+
+    # Oil compressibility: spline fit coefficients (polynomial in pressure)
+    # c_o(P) = a0 + a1*P + a2*P^2 + a3*P^3
+    # When converting pressure units, coefficients must be adjusted:
+    # a0: 1/pressure unit → multiply by pressure conversion
+    # a1: 1/(pressure unit)^2 → multiply by pressure conversion^2
+    # etc.
+    cf = BARA_TO_PSIA
+    for i, key in enumerate(("c_o_a0", "c_o_a1", "c_o_a2", "c_o_a3"), 0):
+        av = st.session_state.get(key, 0.0)
+        if to_si:
+            st.session_state[key] = av / (cf ** (i + 1))
+        elif to_field:
+            st.session_state[key] = av * (cf ** (i + 1))
 
     tr = st.session_state.get("t_recomb", T_STD_F)
     if to_si:
@@ -283,10 +308,56 @@ def _render_sidebar() -> None:
                 "Pressure at which the oil is physically loaded into the recombination cell.\n\n"
                 "Oil is charged first (at this pressure), then separator gas is added "
                 "at recombination pressure to bring the cell to target conditions.\n\n"
-                "The volume to load is V_oil_sep (computed from the GOR / SF framework) — "
-                "no separate compressibility correction is needed."
+                "The charging volume is adjusted for oil compressibility between "
+                "charging pressure and recombination pressure."
             ),
         )
+
+        # Oil compressibility mode selector
+        st.markdown("**Oil Isothermal Compressibility**")
+        c_o_mode = st.radio(
+            "Compressibility model",
+            options=["constant", "spline_fit"],
+            format_func=lambda x: "Constant value" if x == "constant" else "Pressure-dependent (spline fit)",
+            key="c_o_mode",
+            label_visibility="collapsed",
+        )
+
+        if c_o_mode == "constant":
+            c_o_lbl = "c_o (1/psia)" if units == "field" else "c_o (1/bara)"
+            st.number_input(
+                c_o_lbl,
+                min_value=0.0, max_value=500e-6 if units == "field" else 500e-6 / BARA_TO_PSIA,
+                step=10e-6 if units == "field" else 10e-6 / BARA_TO_PSIA,
+                format="%.2e",
+                key="c_o_const",
+                help=(
+                    "Oil isothermal compressibility (constant).\n\n"
+                    "Typical range: 5e-6 to 20e-6 1/psi (field) or 3.4e-7 to 1.4e-6 1/bara (SI).\n\n"
+                    "Set to 0 for incompressible oil."
+                ),
+            )
+        else:
+            # Spline fit mode: polynomial coefficients
+            st.markdown("*Polynomial model: c_o(P) = a₀ + a₁·P + a₂·P² + a₃·P³*")
+            a0_lbl = "a₀ (1/psia constant term)" if units == "field" else "a₀ (1/bara constant term)"
+            a1_lbl = "a₁ (1/psia² linear coeff)" if units == "field" else "a₁ (1/bara² linear coeff)"
+            a2_lbl = "a₂ (1/psia³ quad coeff)" if units == "field" else "a₂ (1/bara³ quad coeff)"
+            a3_lbl = "a₃ (1/psia⁴ cubic coeff)" if units == "field" else "a₃ (1/bara⁴ cubic coeff)"
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.number_input(a0_lbl, format="%.2e", key="c_o_a0")
+                st.number_input(a2_lbl, format="%.2e", key="c_o_a2")
+            with col2:
+                st.number_input(a1_lbl, format="%.2e", key="c_o_a1")
+                st.number_input(a3_lbl, format="%.2e", key="c_o_a3")
+            
+            st.caption(
+                "Provide coefficients in your current unit system. "
+                "When switching units, coefficients will be adjusted accordingly."
+            )
+
         st.markdown("---")
 
         # ── Separator Stage ───────────────────────────────────────────────────
@@ -337,6 +408,48 @@ def _render_sidebar() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
+
+def _compute_compressibility(ss: dict, p_psia: float) -> float:
+    """
+    Compute oil compressibility at a given pressure based on the mode.
+    
+    Args:
+        ss: session state dictionary
+        p_psia: pressure in psia
+    
+    Returns:
+        c_o in 1/psia (internal units)
+    """
+    c_o_mode = ss.get("c_o_mode", "constant")
+    
+    if c_o_mode == "constant":
+        c_o = ss.get("c_o_const", 100e-6)
+        if ss.get("units") == "si":
+            c_o = c_o * BARA_TO_PSIA  # convert from 1/bara to 1/psia
+    else:
+        # spline_fit mode: evaluate polynomial c_o(P) = a0 + a1*P + a2*P^2 + a3*P^3
+        a0 = ss.get("c_o_a0", 100e-6)
+        a1 = ss.get("c_o_a1", 0.0)
+        a2 = ss.get("c_o_a2", 0.0)
+        a3 = ss.get("c_o_a3", 0.0)
+        
+        # Convert coefficients from current units to internal (1/psia)
+        if ss.get("units") == "si":
+            cf = BARA_TO_PSIA
+            a0 = a0 * cf
+            a1 = a1 * cf**2
+            a2 = a2 * cf**3
+            a3 = a3 * cf**4
+        
+        # Evaluate polynomial at p_psia
+        c_o = a0 + a1*p_psia + a2*p_psia**2 + a3*p_psia**3
+    
+    return c_o
+
+
+# ---------------------------------------------------------------------------
 # Main content
 # ---------------------------------------------------------------------------
 
@@ -355,6 +468,11 @@ def _render_content() -> None:
     oil_source  = ss.get("oil_source",  "separator")
     ff          = ss.get("ff",          0.0)    # Flash Factor (Case 2 only)
     p_charge    = ss.get("p_charge_oil", 14.696)
+    
+    # Compute oil compressibility at charging pressure
+    p_charge_psia_for_c_o = p_charge if units == "field" else p_charge * BARA_TO_PSIA
+    c_o = _compute_compressibility(ss, p_charge_psia_for_c_o)
+    
     n_stages    = 1                              # always 1 separator stage
 
     stages = [
@@ -381,7 +499,7 @@ def _render_content() -> None:
     # ── Calculate ──────────────────────────────────────────────────────────
     res = calculate_multistage(
         stages, v_live, sf, p_recomb, t_recomb, z_recomb, units,
-        oil_source=oil_source, FF=ff,
+        oil_source=oil_source, FF=ff, p_charge=p_charge, c_o=c_o,
     )
 
     gor_unit  = "scf/STB" if units == "field" else "sm³/sm³"
@@ -389,8 +507,7 @@ def _render_content() -> None:
     temp_unit = "°F"      if units == "field" else "°C"
     gas_unit  = "scf"     if units == "field" else "sm³"
 
-    # ── Oil charging pressure (informational — no compressibility correction) ──
-    # SF/FF framework gives V_oil_sep directly; that is the volume the engineer loads.
+    # ── Oil charging pressure (adjusted for compressibility) ──
     p_charge_psia = p_charge if units == "field" else p_charge * BARA_TO_PSIA
 
     # GOR error: compare GOR_check (back-calc) against total Rp = R_sep + FF
@@ -531,7 +648,26 @@ def _render_content() -> None:
             unsafe_allow_html=True,
         )
 
-        step_offset = 3
+        # Oil charging volume (compressibility correction)
+        p_charge_psia_display = p_charge if units == "field" else p_charge * BARA_TO_PSIA
+        c_o_display = _compute_compressibility(ss, p_charge_psia_display)
+        pressure_diff = p_charge_psia_display - res.P_recomb_psia
+        volume_ratio = math.exp(c_o_display * pressure_diff)
+        c_o_unit = "1/psia" if units == "field" else "1/bara"
+        st.markdown(
+            C.calc_step(
+                "Step 2b — Oil charging volume (isothermal compressibility correction)",
+                f"V_oil_charge = V_oil_sep × exp(c_o × (P_recomb - P_charge))<br>"
+                f"c_o @ P_charge = {c_o_display:.3e} {c_o_unit}<br>"
+                f" = {res.V_oil_sep:.2f} × exp({c_o_display:.3e} × ({res.P_recomb_psia:.1f} - {p_charge_psia_display:.1f}))<br>"
+                f" = {res.V_oil_sep:.2f} × exp({c_o_display:.3e} × {pressure_diff:.1f})<br>"
+                f" = {res.V_oil_sep:.2f} × {volume_ratio:.6f} = <b>{res.V_oil_charge:.2f} cc</b>"
+                f" <em style='color:#888'>(volume to load at P_charge)</em>",
+            ),
+            unsafe_allow_html=True,
+        )
+
+        step_offset = 4
         for sr in res.stage_results:
             gor_conv = (
                 f"{sr.R_input:.1f} scf/STB × {SCF_STB_TO_CC_CC:.6f} = <b>{sr.R_cc:.5f} cc/cc</b>"
