@@ -152,7 +152,7 @@ def calculate_multistage(
     5. V_oil_STO = V_live / (1 + cylinder_mix_ratio)  — guarantees exact volume balance.
     6. V_oil_sep = V_oil_STO / SF  [Case 1, volume at recomb P]
        V_oil_sep = V_oil_STO       [Case 2, STO at recomb P]
-    7. V_oil_charge = V_oil_sep × exp(c_o × (p_charge - P_recomb))  [volume at charge P]
+    7. V_oil_charge = V_oil_sep × exp(c_o × (P_recomb - p_charge))  [volume at charge P]
     8. Per-stage: gas volumes at std, separator, and recombination conditions.
     9. Flash gas volumes [Case 2]: all attributed to separator gas cylinder.
     """
@@ -216,7 +216,7 @@ def calculate_multistage(
     V_oil_STO          = V_oil_sep * SF if oil_source == "separator" else V_oil_sep
 
     # ── Oil volume at charging pressure ───────────────────────────────────────
-    V_oil_charge = V_oil_sep * math.exp(c_o_psia * (p_charge_psia - P_recomb_psia))
+    V_oil_charge = V_oil_sep * math.exp(c_o_psia * (P_recomb_psia - p_charge_psia))
 
     # ── Per-stage separator gas volumes ───────────────────────────────────────
     stage_results: list[StageResult] = []
