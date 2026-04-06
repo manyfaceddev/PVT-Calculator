@@ -268,10 +268,10 @@ def hero_card(
     )
     oil_label = "STO oil" if res.oil_source == "stock_tank" else "separator oil"
 
-    # ── Oil row: volume to load (SF/FF gives this directly; no c_o correction) ─
+    # ── Oil row: volume to load (adjusted for compressibility) ─
     oil_row = (
         f'<div class="charge-row"><div>'
-        f'<span class="charge-val" style="color:#7fffb8;">{res.V_oil_sep:,.1f}</span>'
+        f'<span class="charge-val" style="color:#7fffb8;">{res.V_oil_charge:,.1f}</span>'
         f'<span class="charge-unit">cc {oil_label}</span>'
         f'<div class="charge-label" style="color:#a0f0c8;font-weight:600;">'
         f'⭐ LOAD at P_charge = {p_charge_psia:.1f} {pres_unit}'

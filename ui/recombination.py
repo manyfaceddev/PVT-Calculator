@@ -85,6 +85,7 @@ _SS_DEFAULTS: dict = {
     "sf": 0.95,                  # Separator-Oil Shrinkage Factor (V_STO / V_sep_oil)
     "p_recomb": 5000.0, "t_recomb": 70.0, "z_recomb": 1.00,
     "p_charge_oil": 2000.0,      # Pressure at which oil is loaded into cell (psia)
+    "c_o": 0.0,                  # Oil compressibility (1/psia)
     "r_sep_1": 583.0, "p_sep_1": 150.0, "t_sep_1": 120.0, "z_sep_1": 0.921,
     "show_pb": True, "gamma_g": 0.76, "api_gravity": 34.0, "t_res": 175.0,
     "example_sel": "— select an example —",
@@ -139,6 +140,12 @@ def _on_units_change() -> None:
             st.session_state[key] = round(pv / BARA_TO_PSIA, 2)
         elif to_field:
             st.session_state[key] = round(pv * BARA_TO_PSIA, 1)
+
+    c_o_v = st.session_state.get("c_o", 0.0)
+    if to_si:
+        st.session_state["c_o"] = c_o_v / BARA_TO_PSIA
+    elif to_field:
+        st.session_state["c_o"] = c_o_v * BARA_TO_PSIA
 
     tr = st.session_state.get("t_recomb", T_STD_F)
     if to_si:
@@ -273,6 +280,7 @@ def _render_sidebar() -> None:
 
         # ── Oil Charging Conditions ───────────────────────────────────────────
         p_charge_lbl = "Oil Charging Pressure (psia)" if units == "field" else "Oil Charging Pressure (bara)"
+        c_o_lbl = "Oil Compressibility c_o (1/psia)" if units == "field" else "Oil Compressibility c_o (1/bara)"
         st.markdown("### 🧪 Oil Charging Conditions")
         st.number_input(
             p_charge_lbl,
@@ -283,8 +291,21 @@ def _render_sidebar() -> None:
                 "Pressure at which the oil is physically loaded into the recombination cell.\n\n"
                 "Oil is charged first (at this pressure), then separator gas is added "
                 "at recombination pressure to bring the cell to target conditions.\n\n"
-                "The volume to load is V_oil_sep (computed from the GOR / SF framework) — "
-                "no separate compressibility correction is needed."
+                "The charging volume is adjusted for oil compressibility between "
+                "charging pressure and recombination pressure."
+            ),
+        )
+        st.number_input(
+            c_o_lbl,
+            min_value=0.0, max_value=50e-6 if units == "field" else 50e-6 / BARA_TO_PSIA,
+            step=1e-6 if units == "field" else 1e-6 / BARA_TO_PSIA,
+            format="%.2e",
+            key="c_o",
+            help=(
+                "Oil isothermal compressibility. Used to adjust charging volume "
+                "for pressure difference between charging and recombination conditions.\n\n"
+                "Typical range: 5e-6 to 20e-6 1/psi (field) or 3.4e-7 to 1.4e-6 1/bara (SI).\n\n"
+                "Set to 0 for incompressible oil."
             ),
         )
         st.markdown("---")
@@ -355,6 +376,7 @@ def _render_content() -> None:
     oil_source  = ss.get("oil_source",  "separator")
     ff          = ss.get("ff",          0.0)    # Flash Factor (Case 2 only)
     p_charge    = ss.get("p_charge_oil", 14.696)
+    c_o         = ss.get("c_o",         0.0)    # Oil compressibility
     n_stages    = 1                              # always 1 separator stage
 
     stages = [
@@ -381,7 +403,7 @@ def _render_content() -> None:
     # ── Calculate ──────────────────────────────────────────────────────────
     res = calculate_multistage(
         stages, v_live, sf, p_recomb, t_recomb, z_recomb, units,
-        oil_source=oil_source, FF=ff,
+        oil_source=oil_source, FF=ff, p_charge=p_charge, c_o=c_o,
     )
 
     gor_unit  = "scf/STB" if units == "field" else "sm³/sm³"
@@ -389,8 +411,7 @@ def _render_content() -> None:
     temp_unit = "°F"      if units == "field" else "°C"
     gas_unit  = "scf"     if units == "field" else "sm³"
 
-    # ── Oil charging pressure (informational — no compressibility correction) ──
-    # SF/FF framework gives V_oil_sep directly; that is the volume the engineer loads.
+    # ── Oil charging pressure (adjusted for compressibility) ──
     p_charge_psia = p_charge if units == "field" else p_charge * BARA_TO_PSIA
 
     # GOR error: compare GOR_check (back-calc) against total Rp = R_sep + FF
