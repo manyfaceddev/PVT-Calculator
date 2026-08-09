@@ -37,15 +37,21 @@ are determined entirely from the GOR and recombination conditions:
     V_gas_recomb = V_live − V_oil_STO
 """
 
-from pvt.constants import (
-    P_STD_PSIA, T_STD_R,
-    SCF_TO_CC, CC_TO_SM3, SCF_STB_TO_CC_CC,
-    BARA_TO_PSIA, Units,
-)
 import math
+
+from pvt.core import constants as c
+from pvt.core.constants import Units
 from pvt.recombination.models import (
     SeparatorStage, StageResult, MultiStageResults,
 )
+
+# Aliases for code readability (canonical names → legacy variable names used in this module)
+P_STD_PSIA = c.P_STD_PSIA
+T_STD_R = c.T_STD_R
+SCF_TO_CC = c.CC_PER_SCF
+CC_TO_SM3 = 1e-6  # 1 sm³ = 1,000,000 cc
+SCF_STB_TO_CC_CC = c.SCF_STB_TO_CC_CC
+BARA_TO_PSIA = c.PSIA_PER_BARA
 
 
 # ===========================================================================

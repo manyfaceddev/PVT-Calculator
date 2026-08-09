@@ -4,7 +4,7 @@ Returns lists of human-readable error strings; empty list means inputs are valid
 """
 
 from pvt.recombination.models import SeparatorStage
-from pvt.constants import Units
+from pvt.core.constants import Units
 
 
 def validate_multistage(
