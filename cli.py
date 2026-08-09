@@ -1,21 +1,33 @@
 #!/usr/bin/env python3
 """
-cli.py — Command-line interface for PVT Separator Recombination Calculator.
+cli.py — Command-line interface for the ADRIC PVT engine.
+
+Two subcommands:
+
+  recombine   Multi-stage separator recombination (Carlsen & Whitson SF/FF
+              flow) from typed inputs -- the original single-purpose CLI,
+              unchanged in behavior, now living under its own subcommand.
+  flash       Import a filled ADRIC Flash v6.1 workbook, run the flash
+              separation + mass-basis recombination chain, and print the
+              report tables as fixed-width text.
 
 Usage examples:
   # Single stage (field units)
-  python cli.py --gor 850 --p_sep 815 --t_sep 145 --z_sep 0.855 \\
+  python cli.py recombine --gor 850 --p_sep 815 --t_sep 145 --z_sep 0.855 \\
                 --v_live 300 --p_recomb 5014.7 --t_recomb 200 --z_recomb 0.820
 
   # Two-stage with Pb estimate
-  python cli.py --gor 850 --p_sep 800 --t_sep 140 --z_sep 0.865 \\
+  python cli.py recombine --gor 850 --p_sep 800 --t_sep 140 --z_sep 0.865 \\
                 --stages 2 --gor2 50 --p2 65 --t2 100 --z2 0.977 \\
                 --v_live 300 --p_recomb 5014.7 --t_recomb 200 --z_recomb 0.820 \\
                 --api 42 --sg_gas 0.72
 
   # SI units
-  python cli.py --units si --gor 151.4 --p_sep 55.8 --t_sep 62.8 --z_sep 0.865 \\
+  python cli.py recombine --units si --gor 151.4 --p_sep 55.8 --t_sep 62.8 --z_sep 0.865 \\
                 --v_live 300 --p_recomb 346.7 --t_recomb 93.3 --z_recomb 0.820
+
+  # Import a filled Flash v6.1 workbook and print its report
+  python cli.py flash --workbook path/to/ADRIC_Flash_Separation_Calc_v6.1.xlsx
 """
 
 import argparse
@@ -29,17 +41,34 @@ from pvt import (
     SCF_STB_TO_CC_CC,
     BARA_TO_PSIA,
 )
+from pvt.core.exceptions import InputValidationError
+from pvt.core.sample import Sample
+from pvt.reporting.tables import ReportTable
 
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         prog="cli.py",
-        description="PVT Separator Recombination Calculator — command-line interface",
+        description="ADRIC PVT engine — command-line interface",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    _build_recombine_parser(subparsers)
+    _build_flash_parser(subparsers)
+
+    return parser
+
+
+def _build_recombine_parser(subparsers: "argparse._SubParsersAction") -> None:
+    p = subparsers.add_parser(
+        "recombine",
+        help="Multi-stage separator recombination (Carlsen & Whitson SF/FF flow)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     # ── Stage 1 (required) ──────────────────────────────────────────────────
@@ -106,11 +135,18 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Unit system: 'field' (psia/°F/scf/STB) or 'si' (bara/°C/sm³/sm³) "
                         "(default: field)")
 
-    return p
+
+def _build_flash_parser(subparsers: "argparse._SubParsersAction") -> None:
+    p = subparsers.add_parser(
+        "flash",
+        help="Import a filled ADRIC Flash v6.1 workbook and print its report tables",
+    )
+    p.add_argument("--workbook", required=True, metavar="PATH",
+                   help="Path to a filled ADRIC_Flash_Separation_Calc_v6.1.xlsx workbook")
 
 
 # ---------------------------------------------------------------------------
-# Report formatting helpers
+# Report formatting helpers (shared by both subcommands)
 # ---------------------------------------------------------------------------
 
 _COL = 26   # label column width
@@ -129,14 +165,32 @@ def _section(title: str) -> str:
     return f"\n{'─' * (pad + 2)} {title} {'─' * (_W - pad - len(title) + 2)}"
 
 
+def _format_report_tables(tables: list[ReportTable], sample: Sample, title: str) -> str:
+    """Render `tables` (plus `sample`'s identifying fields) as fixed-width text."""
+    lines: list[str] = [_rule("="), f"  {title}", _rule("=")]
+
+    lines.append(_section("SAMPLE"))
+    lines.append(_row("Sample ID", sample.sample_id))
+    lines.append(_row("Well", sample.well))
+    lines.append(_row("Field", sample.field_name))
+    lines.append(_row("Client", sample.client))
+
+    for table in tables:
+        lines.append(_section(table.title.upper()))
+        for report_row in table.rows:
+            value = f"{report_row.value} {report_row.unit}".strip()
+            lines.append(_row(report_row.label, value))
+
+    lines.append("")
+    lines.append(_rule("="))
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
-# Main
+# `recombine` subcommand
 # ---------------------------------------------------------------------------
 
-def main() -> int:
-    parser = build_parser()
-    args   = parser.parse_args()
-
+def _run_recombine(args: argparse.Namespace) -> int:
     units = args.units
 
     # ── Build stage list ─────────────────────────────────────────────────────
@@ -290,6 +344,56 @@ def main() -> int:
 
     print("\n".join(lines))
     return 0
+
+
+# ---------------------------------------------------------------------------
+# `flash` subcommand
+# ---------------------------------------------------------------------------
+
+def _run_flash(args: argparse.Namespace) -> int:
+    from pvt.experiments.flash.calc import calculate
+    from pvt.experiments.flash.recombine import recombine_mass
+    from pvt.io.excel_import import flash_v61
+    from pvt.qc.checks import composition_normalization, mw_consistency
+    from pvt.reporting.tables import flash_tables
+
+    try:
+        imp = flash_v61.read(args.workbook)
+    except InputValidationError as exc:
+        for error in exc.errors:
+            print(f"error: {error}", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        print(f"error: cannot read {args.workbook!r}: {exc}", file=sys.stderr)
+        return 1
+
+    results = calculate(imp.volumetrics)
+    recomb = recombine_mass(results.m_oil_g, results.m_gas_g, imp.oil_stream, imp.gas_stream)
+    qc = [
+        composition_normalization.check(imp.gas_stream, "mol"),
+        composition_normalization.check(imp.gas_stream, "wt"),
+        composition_normalization.check(imp.oil_stream, "mol"),
+        composition_normalization.check(imp.oil_stream, "wt"),
+        mw_consistency.check(imp.gas_stream),
+        mw_consistency.check(imp.oil_stream),
+    ]
+
+    tables = flash_tables(results, recomb, qc)
+    print(_format_report_tables(tables, imp.sample, "FLASH SEPARATION — RESULTS REPORT"))
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if args.command == "flash":
+        return _run_flash(args)
+    return _run_recombine(args)
 
 
 if __name__ == "__main__":
