@@ -96,6 +96,41 @@ def test_volumetric_manual_flow_invalid_inputs_shows_error() -> None:
     assert any("temperature" in str(e.value).lower() for e in at.error)
 
 
+def test_volumetric_manual_invalid_resubmit_clears_stale_results() -> None:
+    """Scope-correction follow-up to the stale-results fix (Finding 6):
+    "both pages, all result surfaces" includes the Volumetric (SF/FF) tab,
+    not just the Molar tab's upload path. A valid submit must render the
+    Oil Charge Volume card; an invalid resubmit must show the error AND
+    clear that stale card rather than leaving it on screen underneath."""
+    at = AppTest.from_file(PAGE).run()
+    at.radio(key="recomb.vol_oil_source").set_value("separator")
+    at.number_input(key="recomb.vol_v_live").set_value(300.0)
+    at.number_input(key="recomb.vol_sf").set_value(1.0)
+    at.number_input(key="recomb.vol_p_recomb").set_value(5014.7)
+    at.number_input(key="recomb.vol_t_recomb").set_value(200.0)
+    at.number_input(key="recomb.vol_z_recomb").set_value(0.82)
+    at.number_input(key="recomb.vol_r_sep").set_value(850.0)
+    at.number_input(key="recomb.vol_p_sep").set_value(815.0)
+    at.number_input(key="recomb.vol_t_sep").set_value(145.0)
+    at.number_input(key="recomb.vol_z_sep").set_value(0.855)
+    at.number_input(key="recomb.vol_p_charge").set_value(5014.7)
+    at.button(key="recomb.vol_submit").click()
+    at.run()
+    assert not at.exception
+    rendered = "\n".join(m.value for m in at.markdown)
+    assert "205.07" in rendered  # valid submit -> Oil Charge Volume card rendered
+
+    # Invalid resubmit: unrealistically low separator temperature (the one
+    # field with no widget min_value clamp) fails validate_multistage.
+    at.number_input(key="recomb.vol_t_sep").set_value(-150.0)
+    at.button(key="recomb.vol_submit").click()
+    at.run()
+    assert not at.exception
+    assert len(at.error) >= 1
+    rendered_after = "\n".join(m.value for m in at.markdown)
+    assert "205.07" not in rendered_after  # stale card must be gone
+
+
 def test_molar_manual_flow_reproduces_golden_f_gas() -> None:
     """Brief's Step-1 test: fill the Molar manual-entry form with the SA-372
     golden inputs (tests/golden/test_molar_recombination_sa372.py's `_split`)

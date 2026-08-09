@@ -162,6 +162,9 @@ with tab_volumetric:
             oil_source=oil_source, FF=ff,
         )
         if vol_errors:
+            # Invalid resubmit: clear any previously-rendered result rather
+            # than leaving it on screen underneath the new errors.
+            st.session_state.pop("recomb.vol_active", None)
             for error in vol_errors:
                 st.error(error)
         else:
@@ -172,6 +175,7 @@ with tab_volumetric:
                     else effective_c_o("polynomial", [c_o_a0, c_o_a1, c_o_a2, c_o_a3], p_charge)
                 )
             except InputValidationError as exc:
+                st.session_state.pop("recomb.vol_active", None)
                 st.error("; ".join(exc.errors))
             else:
                 st.session_state["recomb.vol_active"] = calculate_multistage(
