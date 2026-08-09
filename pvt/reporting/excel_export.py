@@ -10,6 +10,7 @@ as a bold section-title row followed by its rows as three columns
 """
 
 from pathlib import Path
+from typing import IO
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
@@ -102,13 +103,17 @@ def _write_sample_block(ws: Worksheet, sample: Sample, row: int) -> int:
 
 
 def write_report(
-    path: str | Path, tables: list[ReportTable], *, title: str, sample: Sample
+    path: str | Path | IO[bytes], tables: list[ReportTable], *, title: str, sample: Sample
 ) -> None:
     """Write `tables` (plus a Sample Information block) to a single-sheet
     ADRIC-styled Excel workbook at `path`.
 
     Args:
-        path: Output .xlsx path.
+        path: Output .xlsx path, or a writable binary file-like (e.g. an
+            in-memory `io.BytesIO`, as `ui.common.components.report_download`
+            uses to build a download without touching disk) -- `Workbook.
+            save` (openpyxl) accepts either transparently; this signature
+            just documents that.
         tables: Report sections to write, in order (e.g. from
             `pvt.reporting.tables.flash_tables`/`recombination_tables`).
         title: Report title, shown in the navy header banner.
