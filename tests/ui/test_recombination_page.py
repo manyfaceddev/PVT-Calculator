@@ -74,8 +74,10 @@ def test_volumetric_manual_flow_reproduces_known_result() -> None:
     rendered = "\n".join(m.value for m in at.markdown)
     # With p_charge == p_recomb, V_oil_charge == V_oil_sep exactly (see
     # TestOilCompressibility.test_charging_pressure_affects_charging_volume);
-    # cross-checked against test_recombination_calc.py's mix-ratio derivation.
-    assert "cc" in rendered
+    # V_oil_charge == 205.074... (independently computed via
+    # calculate_multistage with these exact inputs) -> "205.07" on the
+    # Oil Charge Volume metric card's :.2f formatting.
+    assert "205.07" in rendered
 
 
 def test_volumetric_manual_flow_invalid_inputs_shows_error() -> None:
@@ -142,6 +144,52 @@ def test_molar_manual_flow_then_verify_actual_gor() -> None:
     assert not at.exception
     rendered = "\n".join(m.value for m in at.markdown)
     assert "FAIL" in rendered  # tests/golden/test_loading_sa372.py: dev ~49% -> FAIL
+
+
+def test_molar_verify_result_invalidated_on_resubmit_with_new_split() -> None:
+    """Review-round-1 fix: a stale Actual-GOR QC pill (graded against an OLD
+    split's target GOR) must not survive a NEW molar split. Submit GOR=339,
+    verify (FAIL pill, message cites "target 339.0"), then resubmit the form
+    with GOR=500 WITHOUT re-verifying -> the old pill's text must be gone
+    from the rendered output (and, by the same session_state.pop, excluded
+    from qc_results/report_download) until the user re-verifies against the
+    new split."""
+    at = AppTest.from_file(PAGE).run()
+    at.number_input(key="recomb.molar_gor").set_value(339.0)
+    at.radio(key="recomb.molar_basis").set_value("stock_tank")
+    at.number_input(key="recomb.molar_shrinkage").set_value(1.0)
+    at.number_input(key="recomb.molar_sto_density").set_value(0.8196)
+    at.number_input(key="recomb.molar_sto_mw").set_value(187.05)
+    at.number_input(key="recomb.molar_gas_mw").set_value(26.10)
+    at.number_input(key="recomb.molar_cyl_vol").set_value(1000.0)
+    at.number_input(key="recomb.molar_target_oil").set_value(150.0)
+    at.number_input(key="recomb.molar_oil_load_p").set_value(2000.0)
+    at.number_input(key="recomb.molar_oil_load_t").set_value(75.0)
+    at.number_input(key="recomb.molar_gas_load_p").set_value(5000.0)
+    at.number_input(key="recomb.molar_gas_load_t").set_value(75.0)
+    at.number_input(key="recomb.molar_z_gas_load").set_value(0.85)
+    at.number_input(key="recomb.molar_sto_density_load").set_value(0.885)
+    at.button(key="recomb.molar_submit").click()
+    at.run()
+    assert not at.exception
+
+    at.number_input(key="recomb.verify_oil_cc").set_value(108.96)
+    at.number_input(key="recomb.verify_gas_cc").set_value(27.47)
+    at.button(key="recomb.verify_submit").click()
+    at.run()
+    assert not at.exception
+    rendered = "\n".join(m.value for m in at.markdown)
+    assert "target 339.0" in rendered  # sanity check: old pill present pre-resubmit
+    assert "deviates" in rendered
+
+    # Resubmit the molar form with a different GOR, WITHOUT re-verifying.
+    at.number_input(key="recomb.molar_gor").set_value(500.0)
+    at.button(key="recomb.molar_submit").click()
+    at.run()
+    assert not at.exception
+    rendered = "\n".join(m.value for m in at.markdown)
+    assert "target 339.0" not in rendered
+    assert "deviates" not in rendered
 
 
 def _run_with_molar_active(active: dict) -> AppTest:

@@ -266,6 +266,11 @@ with tab_molar:
                     "loading": molar_imp.loading,
                     "sample": molar_imp.sample,
                 }
+                # A new split invalidates any prior Actual-GOR QC pill -- it
+                # was graded against the OLD split's target GOR and would
+                # otherwise render (and export into the report) against this
+                # new one without ever having been re-verified.
+                st.session_state.pop("recomb.verify_result", None)
                 st.success(f"Loaded {molar_imp.sample.sample_id}.")
 
     with mtab_manual:
@@ -371,6 +376,9 @@ with tab_molar:
                 ),
                 "sample": MANUAL_SAMPLE,
             }
+            # See the upload branch above: a new split invalidates any prior
+            # Actual-GOR QC pill, which was graded against the OLD target GOR.
+            st.session_state.pop("recomb.verify_result", None)
 
     # -----------------------------------------------------------------------
     # Shared molar results -- renders whichever mode last populated

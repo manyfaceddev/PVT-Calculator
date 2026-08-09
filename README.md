@@ -168,7 +168,7 @@ python3 -c "import pvt, ui, cli"           # import-smoke, matches the CI step
 the Python engine deliberately differs from a source workbook — workbook +
 cell proof, Excel behavior, engine behavior, and review status
 (`proposed` until reviewed point-by-point, then `approved`/`parity-kept`).
-14 entries exist today (D-001 through D-011, D-015 through D-018), spanning
+15 entries exist today (D-001 through D-011, D-015 through D-018), spanning
 the Phase 0 component-library canonization and validation posture through
 Phase 1's correlation-formula corrections and Phase 2's standard-condition
 basis / GOR-direction choices — all still `proposed`, pending a point-by-point
