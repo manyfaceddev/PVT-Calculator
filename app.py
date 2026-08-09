@@ -29,14 +29,22 @@ nav.run()
 
 
 # ---------------------------------------------------------------------------
-# Local-run shortcut: `python app.py` launches Streamlit automatically
+# Local-run shortcut: `python app.py` launches Streamlit automatically.
+# The runtime guard is essential: under `streamlit run`, this script ALSO
+# executes with __name__ == "__main__", and an unguarded spawn re-launches
+# Streamlit from every script run (a fork bomb opening endless browser tabs).
+# `runtime.exists()` is True only inside a running Streamlit server, so the
+# spawn fires solely on a bare `python app.py` invocation.
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    import subprocess
-    import sys
-    import os
+    from streamlit import runtime
 
-    subprocess.run(
-        [sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__)],
-        check=False,
-    )
+    if not runtime.exists():
+        import os
+        import subprocess
+        import sys
+
+        subprocess.run(
+            [sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__)],
+            check=False,
+        )

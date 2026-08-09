@@ -1,21 +1,12 @@
 # PVT Calculator
 
-A PVT laboratory engine and Streamlit front-end for reservoir-fluid property
-calculations. The full target scope is a production-grade platform covering
-correlations, flash/recombination, CCE/DV/CVD/MSS, MMP, and cross-test QC for
-a commercial PVT lab; see
-[`docs/superpowers/specs/2026-08-09-pvt-lab-platform-design.md`](docs/superpowers/specs/2026-08-09-pvt-lab-platform-design.md)
-for the full design. The engine (`pvt/`) is pure Python with no UI
-dependency; the lab's validated Excel workbooks are treated as specifications
-and golden test fixtures, never as the calculator.
-
-Currently implemented: **Phase 0** (repo restructure, core data model, 100%
-coverage gate), **Phase 1** (full correlations layer — gas Z-factor,
-pseudo-criticals, bubble point, viscosity), and **Phase 2** (Flash Separation
-+ Live Oil Preparation/Recombination end to end: engine, QC checks, Excel
-import of the ADRIC lab templates, a two-page Streamlit UI in v8 styling,
-`.xlsx` report export, and CLI parity). Phases 3–5 (CCE/CVD/MSS/MMP,
-cross-test QC) are planned — see [Phase roadmap](#phase-roadmap) below.
+An ADNOC-internal PVT laboratory platform: a pure-Python calculation engine
+plus a Streamlit front-end for reservoir-fluid property calculations,
+built for a commercial PVT lab's full scope of work (reference class of
+software: Calsep PVTsim, whitson+). The engine (`pvt/`) has no UI
+dependency; the lab's validated Excel workbooks are treated as
+specifications and golden test fixtures, never as the calculator. Full
+design: [`docs/superpowers/specs/2026-08-09-pvt-lab-platform-design.md`](docs/superpowers/specs/2026-08-09-pvt-lab-platform-design.md).
 
 ---
 
@@ -37,11 +28,44 @@ python cli.py recombine --gor 850 --p_sep 815 --t_sep 145 --z_sep 0.855 \
 python cli.py flash --workbook path/to/ADRIC_Flash_Separation_Calc_v6.1.xlsx
 
 python cli.py --help
-python cli.py recombine --help
-python cli.py flash --help
+
+# Full test suite (100% branch-coverage gate on pvt/)
+pytest
 ```
 
-Requires Python ≥ 3.12 (see `pyproject.toml`).
+Requires Python >= 3.12 (see `pyproject.toml`). `launch.sh` starts the
+Streamlit app bound to `0.0.0.0:8501` for LAN access; `run_pvt.sh` is a
+virtualenv-aware wrapper around `cli.py`.
+
+---
+
+## What works today
+
+**Phase 0 — foundation.** Repo restructured into `pvt/core`, `pvt/qc`,
+`pvt/correlations`, `pvt/experiments`; canonical physical constants and
+unit conversions; `Component`/`ComponentLibrary` (Katz-Firoozabadi 52-slot
+table); `CompositionStream`; `Sample`/`Study` data model; QC severity
+engine; 100% branch-coverage gate on `pvt/`, enforced in CI.
+
+**Phase 1 — correlations library, 13 correlations.** Gas Z-factor
+(Dranchuk-Abou-Kassem, Hall-Yarborough), pseudo-criticals (Sutton, SBV,
+Piper-McCain-Corredor, Wichert-Aziz sour correction, Erbar C7+), bubble
+point (Standing, Vasquez-Beggs, Glaso, Al-Marhoun), viscosity
+(Lee-Gonzalez-Eakin gas, Jossi-Stiel-Thodos dense gas).
+
+**Phase 2 — Flash Separation + Recombination, end to end.** Atmospheric
+flash separation and Live Oil Preparation/Recombination (volumetric SF/FF
+multi-stage flow and a molar composition-split flow, with an oil
+compressibility model for cylinder charging volumes), QC checks
+(composition normalization, MW consistency, Hoffman-Crump), Excel import
+of both ADRIC lab templates (Flash v6.1, LiveOil v4.1), a two-page
+Streamlit UI in v8 styling, ADRIC-styled `.xlsx` report export, and CLI
+parity (`cli.py recombine` / `cli.py flash`).
+
+Phases 3-5 (CCE/DV/MSS/Density/Viscosity HPHT, CVD/MMP, cross-test QC
+Center) are planned — see [Phase roadmap](#phase-roadmap) below and
+`docs/manual/10-deviations-and-roadmap.md` for what the dissected ADRIC
+workbooks already tell us about each of those modules.
 
 ---
 
@@ -56,9 +80,10 @@ pvt/                                  # pure engine — no Streamlit/UI imports
     units.py                          # field/SI conversion functions
     components.py                     # Component, ComponentLibrary (Katz-Firoozabadi 52-slot table)
     composition.py                    # CompositionStream — mol%/wt%, normalization, MW, density
+    plus_fractions.py                 # C7+/C11+/C20+/C36+ cut properties from a composition stream
     sample.py                         # Sample, Study, CrossRef dataclasses
     exceptions.py                     # InputValidationError, ConvergenceError
-  correlations/                       # Phase 1 — empirical PVT correlations
+  correlations/                       # Phase 1 — empirical PVT correlations (13 total)
     bubble_point/                     # Standing, Vasquez-Beggs, Glaso, Al-Marhoun
     pseudocritical/                   # Sutton, SBV, Piper-McCain-Corredor, Wichert-Aziz, Erbar C7+
     viscosity/                        # Lee-Gonzalez-Eakin, Jossi-Stiel-Thodos, critical volumes
@@ -105,13 +130,47 @@ tests/
 
 docs/
   excel-deviations.md                 # ledger of every deliberate engine/workbook difference
+  workbook-defect-review.md           # formula-level defect review of the full ADRIC workbook set
+  reference/gasprop_functions.bas     # reference VBA kernel used to cross-check the Python port
+  manual/                             # this manual's source chapters + build output (see below)
   superpowers/specs/                  # design spec
   superpowers/plans/                  # phase implementation plans
 
+scripts/
+  build_manual.sh                     # pandoc build: docs/manual/*.md -> PVT-Platform-Manual.pdf
+
 app.py                                # Streamlit entry point (st.navigation shell over ui/pages/)
 cli.py                                # command-line interface over the same engine (recombine/flash)
+launch.sh                             # LAN launcher for the Streamlit app (0.0.0.0:8501)
+run_pvt.sh                            # virtualenv-aware wrapper around cli.py
 pyproject.toml                        # packaging, pytest/coverage, ruff, mypy config
 ```
+
+---
+
+## Documentation
+
+The full manual lives in `docs/manual/` as one chapter per file, compiled
+to a single PDF by `scripts/build_manual.sh`:
+
+- `docs/manual/00-title.md` — title page and abstract
+- `docs/manual/01-introduction.md` through `docs/manual/09-*.md` — platform
+  purpose, architecture, the core data model, the correlations library, the
+  flash/recombination workflow, QC, reporting, and testing, one chapter per
+  topic
+- `docs/manual/10-deviations-and-roadmap.md` — the deviations-ledger
+  discipline, every current D-001..D-018 entry summarized, the open
+  rulings, and the Phase 3-5 roadmap read against the dissected workbooks
+
+Compiled output: `docs/manual/PVT-Platform-Manual.pdf` (see
+[Building the manual](#building-the-manual) below). Two supporting
+documents referenced throughout the manual live alongside the ledger:
+
+- [`docs/excel-deviations.md`](docs/excel-deviations.md) — the deviations
+  ledger itself (cell-level proof for every engine/workbook difference)
+- [`docs/workbook-defect-review.md`](docs/workbook-defect-review.md) — the
+  formula-level defect review of every ADRIC production workbook, compiled
+  for point-by-point ruling with the PVT domain owner
 
 ---
 
@@ -122,15 +181,15 @@ pytest
 ```
 
 Runs the full suite with coverage (`pyproject.toml` sets
-`--cov=pvt --cov-report=term-missing --cov-fail-under=100`) — **the build
-fails if `pvt/` coverage drops below 100%.** No `# pragma: no cover` is used
-except on `if TYPE_CHECKING:` blocks; every other line is either exercised by
-a real test or deleted (YAGNI). `cli.py` and everything under `ui/` sit
-outside this gate (`--cov=pvt` only instruments the engine package) but are
-still exercised by their own test suites below.
+`--cov=pvt --cov-report=term-missing --cov-fail-under=100`, with
+`[tool.coverage.run] branch = true`) — **the build fails if `pvt/` branch
+coverage drops below 100%.** No `# pragma: no cover` is used except on
+`if TYPE_CHECKING:` blocks; every other line and branch is either
+exercised by a real test or deleted (YAGNI). `cli.py` and everything under
+`ui/` sit outside this gate (`--cov=pvt` only instruments the engine
+package) but are still exercised by their own test suites below.
 
-The design spec (§8) defines three test tiers, built out as each module
-lands:
+Three test tiers, built out as each module lands:
 
 1. **Unit-sanity** (`tests/unit/`) — analytic limits and physical behavior
    per `pvt/core` / `pvt/qc` / `pvt/correlations` / `pvt/experiments` module
@@ -140,7 +199,10 @@ lands:
    workbooks, keyed to a single reference sample (SA-372; see
    `tests/fixtures/sa372.py` / `sa372_flash.py`) across the full flash and
    recombination chains, plus the Excel importers themselves
-   (`test_import_flash_v61.py`, `test_import_liveoil_v41.py`).
+   (`test_import_flash_v61.py`, `test_import_liveoil_v41.py`). Every golden
+   assertion anchors to a value cached in the source workbook, not to a
+   recomputed one, so the test fails if the engine's output ever silently
+   drifts from what the lab's own spreadsheet produced.
 3. **Deviation** — one test per `docs/excel-deviations.md` entry, asserting
    the engine's correct value where it deliberately departs from a
    workbook.
@@ -162,17 +224,16 @@ python3 -c "import pvt, ui, cli"           # import-smoke, matches the CI step
 
 ---
 
-## Excel deviations ledger
+## Deviations-ledger discipline
 
-[`docs/excel-deviations.md`](docs/excel-deviations.md) records every place
-the Python engine deliberately differs from a source workbook — workbook +
-cell proof, Excel behavior, engine behavior, and review status
-(`proposed` until reviewed point-by-point, then `approved`/`parity-kept`).
-15 entries exist today (D-001 through D-011, D-015 through D-018), spanning
-the Phase 0 component-library canonization and validation posture through
-Phase 1's correlation-formula corrections and Phase 2's standard-condition
-basis / GOR-direction choices — all still `proposed`, pending a point-by-point
-phase-wrap review.
+Every place the Python engine deliberately differs from a source workbook
+is recorded in `docs/excel-deviations.md` with cell-level proof before its
+test lands — anything else failing golden parity is a bug in the port, not
+a deviation. Each entry stays `proposed` until it is reviewed
+point-by-point with the PVT domain owner, at which point it flips to
+`approved` (the engine's form is correct) or `parity-kept` (the workbook's
+form is kept deliberately); see `docs/manual/10-deviations-and-roadmap.md`
+for the full current ledger and the open rulings.
 
 ---
 
@@ -185,8 +246,8 @@ Per the design spec (§2):
   library; `CompositionStream`; QC severity engine; 100% coverage gate.
 - **Phase 1 — done.** Correlations layer: gas Z-factor (DAK, Hall-Yarborough),
   pseudo-criticals (Sutton, SBV, Piper-McCain-Corredor, Wichert-Aziz,
-  Erbar C7+), bubble point (Vasquez-Beggs, Glaso, Al-Marhoun), viscosity
-  (Lee-Gonzalez-Eakin, Jossi-Stiel-Thodos).
+  Erbar C7+), bubble point (Standing, Vasquez-Beggs, Glaso, Al-Marhoun),
+  viscosity (Lee-Gonzalez-Eakin, Jossi-Stiel-Thodos).
 - **Phase 2 — done, pending phase-wrap review.** Flash Separation + Live Oil
   Preparation/Recombination end-to-end: engine (volumetric SF/FF and molar
   composition-split flows, oil-compressibility model), QC checks
@@ -198,6 +259,29 @@ Per the design spec (§2):
   MSS, Density HPHT, Viscosity HPHT.
 - **Phase 4 — planned.** CVD (Whitson-style material balance), MMP slim-tube.
 - **Phase 5 — planned.** Cross-test QC Center; consolidated study reporting.
+
+| Phase | Status | Scope |
+|-------|--------|-------|
+| 0 | done | Repo restructure, core data model, units/constants, 100% coverage gate |
+| 1 | done | Correlations library (Z-factor, pseudo-criticals, bubble point, viscosity) |
+| 2 | done, pending phase-wrap review | Flash + Recombination end-to-end, QC, Excel import/export, UI, CLI |
+| 3 | planned | CCE, DV, MSS, Density HPHT, Viscosity HPHT |
+| 4 | planned | CVD (material balance), MMP slim-tube |
+| 5 | planned | Cross-test QC Center, consolidated study reporting |
+
+---
+
+## Building the manual
+
+```bash
+bash scripts/build_manual.sh
+```
+
+Concatenates `docs/manual/00-title.md` and chapters `01` through `10` (in
+numeric order) through Pandoc into `docs/manual/PVT-Platform-Manual.pdf`
+(table of contents, 2.5cm margins, LaTeX `report` class). Requires
+`pandoc` and a `pdflatex`-providing LaTeX distribution on `PATH`; the
+script fails loudly if either is missing or a chapter file is absent.
 
 ---
 
