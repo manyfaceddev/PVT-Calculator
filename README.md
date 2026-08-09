@@ -55,9 +55,12 @@ pvt/                                  # pure engine — no Streamlit/UI imports
     engine.py                         # QCResult, Severity, ThresholdRegistry, grade(), worst()
 
 ui/                                   # Streamlit presentation only — no calculation logic
-  components.py                       # reusable HTML component builders
-  recombination.py                    # recombination page (session state, sidebar, layout)
-  styles.py                           # CSS
+  theme.py                            # design tokens (v8 palette) + inject() CSS
+  common/
+    components.py                     # shared components (page_header, metric_card, qc_pill, ...)
+  pages/
+    flash_page.py                     # Flash Separation (SSF) page
+    recombination_page.py             # Recombination / Live Oil page
 
 tests/
   unit/                               # mirrors pvt/core + pvt/qc, 1:1
@@ -71,7 +74,7 @@ docs/
   superpowers/specs/                  # design spec
   superpowers/plans/                  # phase implementation plans
 
-app.py                                # Streamlit entry point (delegates to ui.recombination)
+app.py                                # Streamlit entry point (st.navigation shell over ui/pages/)
 cli.py                                # command-line interface over the same engine
 pyproject.toml                        # packaging, pytest/coverage, ruff, mypy config
 ```

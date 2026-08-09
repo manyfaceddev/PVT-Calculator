@@ -1,8 +1,8 @@
 """
-app.py — PVT Calculator entry point.
+app.py — ADRIC PVT Platform entry point.
 
-Thin launcher: configures the Streamlit page, injects the stylesheet,
-and delegates all rendering to the ui.recombination page module.
+Thin `st.navigation` shell: configures the Streamlit page, injects the v8
+theme, and delegates all rendering to the page modules under `ui/pages/`.
 
 Run locally:
     streamlit run app.py
@@ -14,18 +14,18 @@ Deploy:
 
 import streamlit as st
 
-st.set_page_config(
-    page_title="PVT Recombination",
-    page_icon="🛢️",
-    layout="centered",
-    initial_sidebar_state="collapsed",
-)
+st.set_page_config(page_title="ADRIC PVT Platform", layout="wide")
 
-from ui.styles import inject           # noqa: E402  (must come after set_page_config)
-from ui.recombination import render    # noqa: E402
+from ui import theme  # noqa: E402  (must come after set_page_config)
 
-inject()
-render()
+theme.inject()
+
+pages = [
+    st.Page("ui/pages/flash_page.py", title="Flash Separation (SSF)"),
+    st.Page("ui/pages/recombination_page.py", title="Recombination / Live Oil"),
+]
+nav = st.navigation(pages)
+nav.run()
 
 
 # ---------------------------------------------------------------------------

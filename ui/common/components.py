@@ -1,0 +1,107 @@
+"""
+ui/common/components.py — Reusable Streamlit components shared across every
+ADRIC PVT Platform page (Task 10; consumed by the flash/recombination pages
+built in Tasks 11-12).
+
+Each function renders directly (via `st.markdown` / `st.expander` /
+`st.download_button`, ...) rather than returning an HTML string — pages call
+these top to bottom to build their layout. Styling relies on the CSS classes
+`ui.theme.inject()` defines (`.pvt-page-header`, `.pvt-metric-card`); colours
+otherwise come straight from `ui.theme.TOKENS` so severity/brand colours stay
+in one place.
+"""
+
+from __future__ import annotations
+
+from io import BytesIO
+
+import streamlit as st
+
+from pvt.core.sample import Sample
+from pvt.qc.engine import QCResult
+from pvt.reporting.excel_export import write_report
+from pvt.reporting.tables import ReportTable
+from ui.theme import TOKENS
+
+_QC_COLORS: dict[str, str] = {
+    "PASS": TOKENS["qc_green"],
+    "REVIEW": TOKENS["qc_amber"],
+    "FAIL": TOKENS["qc_red"],
+}
+
+_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def page_header(title: str, subtitle: str) -> None:
+    """Render the navy page-header banner every page opens with."""
+    st.markdown(
+        f'<div class="pvt-page-header"><h1>{title}</h1><p>{subtitle}</p></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def metric_card(label: str, value: str, unit: str = "") -> None:
+    """Render a single tinted metric card (big value, unit, label)."""
+    st.markdown(
+        f'<div class="pvt-metric-card">'
+        f'<div class="pvt-metric-value">{value}</div>'
+        f'<div class="pvt-metric-unit">{unit}</div>'
+        f'<div class="pvt-metric-label">{label}</div>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def qc_pill(result: QCResult) -> None:
+    """Render one `QCResult` as a coloured-dot pill: check id + message."""
+    color = _QC_COLORS[result.severity.value]
+    st.markdown(
+        f'<div style="display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0;">'
+        f'<span style="height:10px;width:10px;min-width:10px;border-radius:50%;'
+        f'background:{color};display:inline-block;"></span>'
+        f'<span style="font-weight:600;">{result.check_id}</span>'
+        f'<span style="color:#6a7f96;font-size:0.85rem;">{result.message}</span>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def qc_panel(results: list[QCResult]) -> None:
+    """Render a stack of `qc_pill`s, one per `QCResult` in `results`."""
+    for result in results:
+        qc_pill(result)
+
+
+def calc_steps(steps: list[tuple[str, str]]) -> None:
+    """Render `(label, formula_html)` pairs as rows inside a collapsed
+    "Calculation Steps" expander."""
+    with st.expander("Calculation Steps", expanded=False):
+        for label, formula in steps:
+            st.markdown(
+                f'<div style="background:#f4f8fc;border:1px solid #d0dcea;'
+                f'border-radius:8px;padding:0.75rem 1rem;margin-bottom:0.55rem;'
+                f'font-family:\'Courier New\',monospace;font-size:0.82rem;'
+                f'color:#2c3e50;line-height:1.5;">'
+                f'<div style="font-family:\'Segoe UI\',Arial,sans-serif;'
+                f'font-size:0.75rem;font-weight:700;color:{TOKENS["blue"]};'
+                f'margin-bottom:0.25rem;">{label}</div>'
+                f"{formula}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+
+def report_download(tables: list[ReportTable], sample: Sample, filename: str) -> None:
+    """Build an ADRIC-styled `.xlsx` report from `tables`/`sample` entirely
+    in memory (`BytesIO`, via `pvt.reporting.excel_export.write_report`) and
+    offer it as an `st.download_button` named `filename`."""
+    title = filename.rsplit("/", 1)[-1].rsplit(".", 1)[0].replace("_", " ").strip()
+    buffer = BytesIO()
+    write_report(buffer, tables, title=title or filename, sample=sample)
+    buffer.seek(0)
+    st.download_button(
+        "Download Excel Report",
+        data=buffer,
+        file_name=filename,
+        mime=_XLSX_MIME,
+    )
