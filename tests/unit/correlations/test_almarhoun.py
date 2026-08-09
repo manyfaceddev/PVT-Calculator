@@ -1,4 +1,5 @@
 import pytest
+from pvt.core.exceptions import InputValidationError
 from pvt.correlations.bubble_point.almarhoun import bubble_point
 
 
@@ -16,3 +17,23 @@ def test_close_to_sheet_rounded_form():
 
 def test_trends():
     assert bubble_point(1200, 0.65, 0.85, 200) > bubble_point(800, 0.65, 0.85, 200)
+
+
+# --- Input validation guards -------------------------------------------------
+
+@pytest.mark.parametrize("rs, gas_gravity, oil_sg, t_f", [
+    (0.0, 0.65, 0.85, 200.0),      # rs_scf_stb <= 0
+    (1000.0, 0.0, 0.85, 200.0),    # gas_gravity <= 0
+    (1000.0, 0.65, 0.0, 200.0),    # oil_sg <= 0
+    (1000.0, 0.65, 2.0, 200.0),    # oil_sg >= 2
+    (1000.0, 0.65, 0.85, -459.67), # t_f <= -459.67 (absolute zero)
+])
+def test_rejects_bad_inputs(rs, gas_gravity, oil_sg, t_f):
+    with pytest.raises(InputValidationError):
+        bubble_point(rs, gas_gravity, oil_sg, t_f)
+
+
+def test_collects_all_violations():
+    with pytest.raises(InputValidationError) as exc_info:
+        bubble_point(0.0, 0.0, 0.0, -500.0)
+    assert len(exc_info.value.errors) == 4

@@ -2,6 +2,9 @@
 
 Source: Sutton, R.P., SPE 14265; coefficients as used in the ADRIC CVD workbook
 (Additional_QC!E9/F9) and DV v5 Additional_QC.
+
+This is a sweet-gas correlation (no H2S/CO2 term); apply
+``wichert_aziz.correct`` to its (Tpc, Ppc) output for sour gas.
 """
 from pvt.core.exceptions import InputValidationError
 

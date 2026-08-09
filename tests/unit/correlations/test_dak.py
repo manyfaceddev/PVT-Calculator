@@ -52,6 +52,14 @@ def test_nonpositive_ppc_error():
     with pytest.raises(InputValidationError):
         z_factor(1000.0, T1, TPC1, 0.0)
 
+def test_nonpositive_z0_error():
+    with pytest.raises(InputValidationError):
+        z_factor(1000.0, T1, TPC1, PPC1, z0=0.0)
+
+def test_negative_z0_error():
+    with pytest.raises(InputValidationError):
+        z_factor(1000.0, T1, TPC1, PPC1, z0=-0.5)
+
 def test_high_pressure_validity_enforced():
     with pytest.raises(InputValidationError):
         z_factor(21000.0, T1, TPC1, PPC1)   # Ppr >= 30

@@ -42,15 +42,35 @@ D-008 (docs/excel-deviations.md): the source workbook computes the
 exponent term as a = -C3 x API x (T + 460) -- multiplying by (T + 460)
 instead of dividing -- which overflows to #NUM!. This module divides by
 (T + 460), per both published forms above.
+
+`bubble_point()` emits a `UserWarning` (message contains "outside
+Vasquez-Beggs") for any input outside Vasquez & Beggs' (1980) original
+data range: Rs 20-2070 scf/STB, gas_gravity 0.511-1.351, API 15.3-59.3,
+T 75-294 F -- mirrors standing.py's `_warn_if_outside_range` pattern.
+Both `bubble_point()` and `corrected_gas_gravity()` also raise
+`InputValidationError` for non-physical inputs (Rs/gas_gravity/API/p_sep
+<= 0).
 """
 
 import math
+import warnings
+
+from pvt.core.exceptions import InputValidationError
 
 # Ahmed's tabulated Pb-form coefficients (C1, C2, C3), selected by
 # stock-tank oil API gravity. API <= 30 uses one triplet; API > 30
 # switches to the other.
 _COEFFS_API_LE_30 = (27.62, 0.914, 11.172)
 _COEFFS_API_GT_30 = (56.18, 0.842, 10.393)
+
+# Vasquez & Beggs (1980) original data range. Inputs outside this range emit
+# a UserWarning (message contains "outside Vasquez-Beggs") from
+# `bubble_point()` -- the correlation is a curve fit, not a physical law,
+# and extrapolation accuracy degrades outside the range it was regressed on.
+_RS_MIN, _RS_MAX = 20.0, 2070.0
+_GAS_GRAVITY_MIN, _GAS_GRAVITY_MAX = 0.511, 1.351
+_API_MIN, _API_MAX = 15.3, 59.3
+_T_F_MIN, _T_F_MAX = 75.0, 294.0
 
 
 def corrected_gas_gravity(
@@ -75,7 +95,21 @@ def corrected_gas_gravity(
     Returns
     -------
     gamma_gs, the corrected gas gravity (air = 1.0)
+
+    Raises
+    ------
+    InputValidationError
+        If gas_gravity, api, or p_sep_psia is <= 0.
     """
+    errors = []
+    if gas_gravity <= 0:
+        errors.append(f"gas_gravity {gas_gravity} must be > 0")
+    if api <= 0:
+        errors.append(f"api {api} must be > 0")
+    if p_sep_psia <= 0:
+        errors.append(f"p_sep_psia {p_sep_psia} must be > 0")
+    if errors:
+        raise InputValidationError(errors)
     return gas_gravity * (
         1.0 + 5.912e-5 * api * t_sep_f * math.log10(p_sep_psia / 114.7)
     )
@@ -109,10 +143,63 @@ def bubble_point(
     api : stock-tank oil API gravity
     t_f : reservoir temperature, deg F
 
+    Emits a `UserWarning` (message contains "outside Vasquez-Beggs") for any
+    input outside Vasquez & Beggs' (1980) original data range: Rs 20-2070
+    scf/STB, gas_gravity 0.511-1.351, API 15.3-59.3, T 75-294 F.
+
     Returns
     -------
     Pb in psia
+
+    Raises
+    ------
+    InputValidationError
+        If rs_scf_stb, gas_gravity, or api is <= 0.
     """
+    errors = []
+    if rs_scf_stb <= 0:
+        errors.append(f"rs_scf_stb {rs_scf_stb} must be > 0")
+    if gas_gravity <= 0:
+        errors.append(f"gas_gravity {gas_gravity} must be > 0")
+    if api <= 0:
+        errors.append(f"api {api} must be > 0")
+    if errors:
+        raise InputValidationError(errors)
+    _warn_if_outside_range(rs_scf_stb, gas_gravity, api, t_f)
     c1, c2, c3 = _COEFFS_API_LE_30 if api <= 30 else _COEFFS_API_GT_30
     exponent_term = 10.0 ** (-c3 * api / (t_f + 460.0))
     return (c1 * (rs_scf_stb / gas_gravity) * exponent_term) ** c2
+
+
+def _warn_if_outside_range(
+    rs_scf_stb: float,
+    gas_gravity: float,
+    api: float,
+    t_f: float,
+) -> None:
+    """Warn (once per out-of-range input) when a Vasquez & Beggs (1980) input
+    falls outside the original correlation's data range."""
+    if not (_RS_MIN <= rs_scf_stb <= _RS_MAX):
+        warnings.warn(
+            f"bubble_point: Rs={rs_scf_stb} scf/STB is outside Vasquez-Beggs (1980) "
+            f"data range [{_RS_MIN}, {_RS_MAX}]",
+            stacklevel=3,
+        )
+    if not (_GAS_GRAVITY_MIN <= gas_gravity <= _GAS_GRAVITY_MAX):
+        warnings.warn(
+            f"bubble_point: gas_gravity={gas_gravity} is outside Vasquez-Beggs (1980) "
+            f"data range [{_GAS_GRAVITY_MIN}, {_GAS_GRAVITY_MAX}]",
+            stacklevel=3,
+        )
+    if not (_API_MIN <= api <= _API_MAX):
+        warnings.warn(
+            f"bubble_point: API={api} is outside Vasquez-Beggs (1980) "
+            f"data range [{_API_MIN}, {_API_MAX}]",
+            stacklevel=3,
+        )
+    if not (_T_F_MIN <= t_f <= _T_F_MAX):
+        warnings.warn(
+            f"bubble_point: T={t_f} F is outside Vasquez-Beggs (1980) "
+            f"data range [{_T_F_MIN}, {_T_F_MAX}]",
+            stacklevel=3,
+        )

@@ -1,6 +1,7 @@
 import pytest
 from pvt.core.components import KATZ_FIROOZABADI as KF
 from pvt.core.composition import CompositionStream
+from pvt.core.exceptions import InputValidationError
 from pvt.correlations.pseudocritical import piper_mccain as pm
 
 
@@ -24,11 +25,35 @@ def test_golden_compositional_form():
 
 
 def test_deviation_d003_co2_coefficient():
-    # D-003: with CO2 present the published coefficient (-0.90348) must bite: it shrinks J
-    # roughly 10x more than the transposed -0.09034 would, so Tpc must shift markedly.
-    sweet_tpc = pm.from_gravity(0.737)[0]
-    sour_tpc = pm.from_gravity(0.737, y_co2=0.20)[0]
-    assert abs(sour_tpc - sweet_tpc) / sweet_tpc > 0.02   # >2% shift at 20% CO2
+    # D-003: exact pin, independently hand-computed (not by calling piper_mccain.py) from
+    # the published gravity-form J/K formula (module docstring), the published gravity-form
+    # coefficients (SPE 26668: alpha2 = -0.90348, NOT the workbook's transposed -0.09034),
+    # and the KF library's CO2 Tc/Pc (547.6 R / 1071.0 psia -- pvt/core/components.py
+    # _KF_ROWS "CO2" row). from_gravity(0.737, y_co2=0.20): y_h2s = y_n2 = 0, so those
+    # terms drop out of J and K entirely, leaving:
+    #
+    #   Tc_CO2/Pc_CO2 = 547.6/1071.0 = 0.5112978524743231
+    #   Tc_CO2/sqrt(Pc_CO2) = 547.6/1071.0**0.5 = 16.732803232421617
+    #
+    #   J = a0 + a2*y_co2*(Tc_CO2/Pc_CO2) + a4*gamma + a5*gamma^2
+    #     = 0.11582 + (-0.90348 * 0.20 * 0.5112978524743231) + (0.70729 * 0.737)
+    #       + (-0.099397 * 0.737**2)
+    #     = 0.11582 - 0.09238947675070029 + 0.52127273 - 0.053989369093
+    #     = 0.4907138841562997
+    #
+    #   K = b0 + b2*y_co2*(Tc_CO2/sqrt(Pc_CO2)) + b4*gamma + b5*gamma^2
+    #     = 3.8216 + (-0.42113 * 0.20 * 16.732803232421617) + (17.438 * 0.737)
+    #       + (-3.2191 * 0.737**2)
+    #     = 3.8216 - 1.4093370850539433 + 12.851805999999998 - 1.7485153279
+    #     = 13.515553587046055
+    #
+    #   Tpc = K**2 / J = 13.515553587046055**2 / 0.4907138841562997 = 372.2539644020553 R
+    #
+    # Under the transposed alpha2 = -0.09034 (D-003's Excel bug), the CO2 term in J would
+    # be ~10x weaker and Tpc would come out materially different from this pin -- so this
+    # exact-value assertion also verifies the transposition has NOT crept back in.
+    tpc = pm.from_gravity(0.737, y_co2=0.20)[0]
+    assert tpc == pytest.approx(372.2539644020553, rel=1e-9)
 
 
 def test_compositional_form_h2s_present():
@@ -64,3 +89,27 @@ def test_c7_plus_bucket_includes_naphthenes_mole_weighted_mw():
     unweighted_mw = (KF.get("C7").mw + KF.get("MCP").mw) / 2
     tpc_unweighted, _ = pm.from_composition(stream, c7p_mw=unweighted_mw)
     assert tpc_unweighted != pytest.approx(tpc, rel=1e-9)
+
+
+# --- Input validation guards -------------------------------------------------
+# Catches the mole-PERCENT trap: e.g. y_co2=20 meaning "20%" instead of 0.20.
+
+@pytest.mark.parametrize("gas_gravity, y_h2s, y_co2, y_n2", [
+    (0.0, 0.0, 0.0, 0.0),      # gas_gravity <= 0
+    (0.737, -0.1, 0.0, 0.0),   # y_h2s < 0
+    (0.737, 5.0, 0.0, 0.0),    # y_h2s > 1 (mole-percent trap)
+    (0.737, 0.0, -0.1, 0.0),   # y_co2 < 0
+    (0.737, 0.0, 20.0, 0.0),   # y_co2 > 1 (mole-percent trap)
+    (0.737, 0.0, 0.0, -0.1),   # y_n2 < 0
+    (0.737, 0.0, 0.0, 5.0),    # y_n2 > 1 (mole-percent trap)
+    (0.737, 0.5, 0.4, 0.3),    # each in [0,1] individually but sum > 1
+])
+def test_from_gravity_rejects_bad_inputs(gas_gravity, y_h2s, y_co2, y_n2):
+    with pytest.raises(InputValidationError):
+        pm.from_gravity(gas_gravity, y_h2s=y_h2s, y_co2=y_co2, y_n2=y_n2)
+
+
+def test_from_gravity_collects_all_violations():
+    with pytest.raises(InputValidationError) as exc_info:
+        pm.from_gravity(0.0, y_h2s=-1.0, y_co2=-1.0, y_n2=-1.0)
+    assert len(exc_info.value.errors) == 4

@@ -1,7 +1,9 @@
 import math
+import warnings
 
 import pytest
 
+from pvt.core.exceptions import InputValidationError
 from pvt.correlations.bubble_point.vasquez_beggs import bubble_point, corrected_gas_gravity
 
 
@@ -46,3 +48,53 @@ def test_round_trip_against_original_rs_form():
     # exact-inverse coefficients. High-Rs API>30 fluids are a real regime - keep it
     # covered rather than shopping the input.
     assert rs_back_high == pytest.approx(1000.0, rel=6e-3)
+
+
+# --- Input validation guards -------------------------------------------------
+
+@pytest.mark.parametrize("gas_gravity, api, t_sep_f, p_sep_psia", [
+    (0.0, 30.0, 100.0, 150.0),    # gas_gravity <= 0
+    (1.0, 0.0, 100.0, 150.0),     # api <= 0
+    (1.0, 30.0, 100.0, 0.0),      # p_sep_psia <= 0
+])
+def test_corrected_gas_gravity_rejects_bad_inputs(gas_gravity, api, t_sep_f, p_sep_psia):
+    with pytest.raises(InputValidationError):
+        corrected_gas_gravity(gas_gravity, api, t_sep_f, p_sep_psia)
+
+
+def test_corrected_gas_gravity_collects_all_violations():
+    with pytest.raises(InputValidationError) as exc_info:
+        corrected_gas_gravity(0.0, 0.0, 100.0, 0.0)
+    assert len(exc_info.value.errors) == 3
+
+
+@pytest.mark.parametrize("rs, gas_gravity, api, t_f", [
+    (0.0, 0.65, 30.0, 200.0),     # rs_scf_stb <= 0
+    (1000.0, 0.0, 30.0, 200.0),   # gas_gravity <= 0
+    (1000.0, 0.65, 0.0, 200.0),   # api <= 0
+])
+def test_bubble_point_rejects_bad_inputs(rs, gas_gravity, api, t_f):
+    with pytest.raises(InputValidationError):
+        bubble_point(rs, gas_gravity, api, t_f)
+
+
+# --- Vasquez-Beggs (1980) range warnings -------------------------------------
+# Mirrors standing.py's `_warn_if_outside_range` pattern/test shape
+# (tests/unit/correlations/test_standing.py::test_range_warning).
+
+def test_range_warning():
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        bubble_point(2500.0, 0.65, 30.0, 200.0)   # Rs above 2070
+    assert any("outside Vasquez-Beggs" in str(w.message) for w in caught)
+
+
+def test_range_warning_all_four_checks():
+    # Positive-but-out-of-range on every axis (Rs, gas_gravity, API, T) so all four
+    # `_warn_if_outside_range` branches fire in one call -- gas_gravity/api stay > 0
+    # so the InputValidationError guard doesn't short-circuit before the warnings.
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        bubble_point(5.0, 2.0, 80.0, 500.0)
+    messages = [str(w.message) for w in caught]
+    assert sum("outside Vasquez-Beggs" in m for m in messages) == 4

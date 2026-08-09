@@ -24,9 +24,21 @@ in `reduced_density` as the rounded literal 10.73. This module uses the
 canonical `R_PSIA_FT3_LBMOL_R` (10.7316) instead, per the task brief; the two
 agree to ~0.015%, immaterial at the analytic tolerances this module's tests
 use.
+
+Note on the dilute-term branches: the Tr<=1.5 / Tr>1.5 split and its
+0.00034/0.888 and 0.001668/0.1338/0.0932/(5/9) coefficients are the Amoco
+GasProp VBA's variant of the Stiel-Thodos (1961) dilute-gas viscosity
+correlation, not a transcription of the originally-published Stiel-Thodos
+coefficients. This VBA variant deviates from published Stiel-Thodos forms
+by roughly -2% to +3% depending on Tr, with the ~1% jump right at Tr=1.5
+(see the branch-boundary note above) being a symptom of that same VBA-vs-
+published divergence. This module is deliberately VBA-faithful, not
+published-Stiel-Thodos-faithful -- see D-011 and the module-level goal of
+transcribing `docs/reference/gasprop_functions.bas` exactly.
 """
 
-from pvt.core.constants import R_PSIA_FT3_LBMOL_R
+from pvt.core import constants
+from pvt.core.exceptions import InputValidationError
 
 
 def reduced_density(p_psia: float, z: float, t_r: float, vc_mix: float) -> float:
@@ -45,8 +57,20 @@ def reduced_density(p_psia: float, z: float, t_r: float, vc_mix: float) -> float
     Returns
     -------
     rho_r, reduced density (dimensionless)
+
+    Raises
+    ------
+    InputValidationError
+        If z <= 0 or vc_mix <= 0.
     """
-    return vc_mix * p_psia / (z * R_PSIA_FT3_LBMOL_R * t_r)
+    errors = []
+    if z <= 0:
+        errors.append(f"z {z} must be > 0")
+    if vc_mix <= 0:
+        errors.append(f"vc_mix {vc_mix} must be > 0")
+    if errors:
+        raise InputValidationError(errors)
+    return vc_mix * p_psia / (z * constants.R_PSIA_FT3_LBMOL_R * t_r)
 
 
 def gas_viscosity_cp(t_r: float, mw: float, tpc_r: float, ppc_psia: float, rho_r: float) -> float:
@@ -71,8 +95,25 @@ def gas_viscosity_cp(t_r: float, mw: float, tpc_r: float, ppc_psia: float, rho_r
     Returns
     -------
     mu, gas viscosity in cP
+
+    Raises
+    ------
+    InputValidationError
+        If mw <= 0, tpc_r <= 0, ppc_psia <= 0, or rho_r < 0.
     """
-    chi = (tpc_r / 1.8) ** (1 / 6) / (mw**0.5 * (ppc_psia / 14.696) ** (2 / 3))
+    errors = []
+    if mw <= 0:
+        errors.append(f"mw {mw} must be > 0")
+    if tpc_r <= 0:
+        errors.append(f"tpc_r {tpc_r} must be > 0")
+    if ppc_psia <= 0:
+        errors.append(f"ppc_psia {ppc_psia} must be > 0")
+    if rho_r < 0:
+        errors.append(f"rho_r {rho_r} must be >= 0")
+    if errors:
+        raise InputValidationError(errors)
+
+    chi = (tpc_r / 1.8) ** (1 / 6) / (mw**0.5 * (ppc_psia / constants.P_ATM_PSIA) ** (2 / 3))
 
     t_r_reduced = t_r / tpc_r
     if t_r_reduced <= 1.5:

@@ -1,4 +1,8 @@
-"""Stewart-Burkhardt-Voo (1959) pseudo-critical mixing rules from composition."""
+"""Stewart-Burkhardt-Voo (1959) pseudo-critical mixing rules from composition.
+
+This is a sweet-gas correlation (no H2S/CO2 term); apply
+``wichert_aziz.correct`` to its (Tpc, Ppc) output for sour gas.
+"""
 import math
 
 from pvt.core.composition import CompositionStream

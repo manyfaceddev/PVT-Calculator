@@ -30,6 +30,15 @@ instead of t, omits the ·t factor in the A-term, and returns the reduced
 density y itself as "Z"). This module implements the canonical Hall &
 Yarborough (1973) equation per the Gas_Gradient VBA reference, not that
 broken variant. See docs/excel-deviations.md D-006.
+
+Note: unlike `pvt.correlations.zfactor.dak.z_factor`, this module does NOT
+enforce a DAK-style (Ppr, Tpr) validity window -- this is deliberate, not an
+oversight. Hall & Yarborough's own Newton iteration and the defensive
+y-domain clamps below (`_Y_MIN`/`_Y_MAX`) are the only guardrails; extreme
+Ppr/Tpr combinations are exercised directly (see
+`test_upper_clamp_safety_valve` in tests/unit/correlations/test_hall_yarborough.py,
+which drives Ppr into a non-physical regime specifically to reach the y>=1
+clamp) rather than rejected up front.
 """
 import math
 

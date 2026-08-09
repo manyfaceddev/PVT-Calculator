@@ -30,6 +30,24 @@ tests/unit/correlations/test_glaso.py.
 
 import math
 
+from pvt.core.exceptions import InputValidationError
+
+
+def _validate_inputs(rs_scf_stb: float, gas_gravity: float, api: float, t_f: float) -> None:
+    """Raise InputValidationError (collecting all violated rules) unless
+    rs_scf_stb, gas_gravity, api, and t_f are all strictly positive."""
+    errors = []
+    if rs_scf_stb <= 0:
+        errors.append(f"rs_scf_stb {rs_scf_stb} must be > 0")
+    if gas_gravity <= 0:
+        errors.append(f"gas_gravity {gas_gravity} must be > 0")
+    if api <= 0:
+        errors.append(f"api {api} must be > 0")
+    if t_f <= 0:
+        errors.append(f"t_f {t_f} must be > 0")
+    if errors:
+        raise InputValidationError(errors)
+
 
 def pb_star(
     rs_scf_stb: float,
@@ -52,7 +70,13 @@ def pb_star(
     Returns
     -------
     Pb*, the dimensionless Glaso correlating number
+
+    Raises
+    ------
+    InputValidationError
+        If rs_scf_stb, gas_gravity, api, or t_f is <= 0.
     """
+    _validate_inputs(rs_scf_stb, gas_gravity, api, t_f)
     return (rs_scf_stb / gas_gravity) ** 0.816 * t_f**0.172 / api**0.989
 
 
@@ -79,7 +103,13 @@ def bubble_point(
     Returns
     -------
     Pb in psia
+
+    Raises
+    ------
+    InputValidationError
+        If rs_scf_stb, gas_gravity, api, or t_f is <= 0.
     """
+    _validate_inputs(rs_scf_stb, gas_gravity, api, t_f)
     log10_pb_star = math.log10(pb_star(rs_scf_stb, gas_gravity, api, t_f))
     log10_pb = 1.7669 + 1.7447 * log10_pb_star - 0.30218 * log10_pb_star**2
     return 10.0**log10_pb

@@ -1,4 +1,5 @@
 import pytest
+from pvt.core.exceptions import InputValidationError
 from pvt.correlations.pseudocritical.wichert_aziz import correct
 
 def test_no_impurities_is_identity():
@@ -15,3 +16,24 @@ def test_hand_computed_case():
 def test_correction_lowers_both():
     tpc, ppc = correct(400.0, 700.0, 0.10, 0.05)
     assert tpc < 400.0 and ppc < 700.0
+
+
+# --- Input validation guards -------------------------------------------------
+# Catches the mole-PERCENT trap: e.g. y_co2=20 meaning "20%" instead of 0.20.
+
+@pytest.mark.parametrize("y_co2, y_h2s", [
+    (-0.1, 0.05),   # y_co2 < 0
+    (20.0, 0.05),   # y_co2 > 1 (mole-percent trap)
+    (0.10, -0.05),  # y_h2s < 0
+    (0.10, 5.0),    # y_h2s > 1 (mole-percent trap)
+    (0.7, 0.4),     # both in [0,1] individually but sum > 1
+])
+def test_rejects_bad_inputs(y_co2, y_h2s):
+    with pytest.raises(InputValidationError):
+        correct(400.0, 700.0, y_co2, y_h2s)
+
+
+def test_collects_all_violations():
+    with pytest.raises(InputValidationError) as exc_info:
+        correct(400.0, 700.0, -1.0, -1.0)
+    assert len(exc_info.value.errors) == 2

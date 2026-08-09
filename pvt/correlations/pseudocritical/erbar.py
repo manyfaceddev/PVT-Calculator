@@ -114,9 +114,11 @@ def c7_plus_criticals(mw: float, sg: float) -> tuple[float, float, float]:
             range).
         pc_psia: Pseudo-critical pressure, psia. Floored at 0.0 (same
             defensive clamp as tc_r).
-        vc: Pseudo-critical volume, in the same units as the composition
-            library's crit_vc table (Hall 1971: vc = 0.025 * (mw /
-            sg**0.69) ** 1.15).
+        vc: Pseudo-critical volume, in the same units (ft3/lbmol) as
+            `pvt.correlations.viscosity.critical_volumes.VC_TABLE` (Hall
+            1971: vc = 0.025 * (mw / sg**0.69) ** 1.15). Pass this value as
+            `critical_volumes.vc_mix`'s `c7_plus_vc` argument to combine it
+            with the other 11 components' tabulated Vc values.
     """
     mw, sg = _clamp_inputs(mw, sg)
 

@@ -25,16 +25,19 @@ within the golden test's tolerance.
 import math
 from typing import Final
 
-from pvt.core.constants import R_PSIA_FT3_LBMOL_R
+from pvt.core import constants
+from pvt.core.exceptions import InputValidationError
 
-_LBM_FT3_TO_G_CC: Final[float] = 0.016018463
+_LBM_FT3_TO_G_CC: Final[float] = constants.G_PER_LB / 30.48**3
 """Exact lbm/ft3 -> g/cc conversion: G_PER_LB / (30.48^3 cc per ft3)
-= 453.59237 / 28316.846592 = 0.01601846337..., rounded to 0.016018463."""
+= 453.59237 / 28316.846592 = 0.01601846337... (30.48 cm/ft is the formula-
+grade, exact-by-definition inch/foot conversion, so this is derived rather
+than hardcoded as the rounded 0.016018463 literal)."""
 
-DENSITY_COEF: Final[float] = _LBM_FT3_TO_G_CC / R_PSIA_FT3_LBMOL_R
+DENSITY_COEF: Final[float] = _LBM_FT3_TO_G_CC / constants.R_PSIA_FT3_LBMOL_R
 """P*M/(Z*T) [psia*g/mol / R] -> rho_g [g/cc] conversion factor.
 
-= _LBM_FT3_TO_G_CC / R_PSIA_FT3_LBMOL_R = 0.016018463 / 10.7316 ~= 0.0014926
+= _LBM_FT3_TO_G_CC / R_PSIA_FT3_LBMOL_R ~= 0.01601846337 / 10.7316 ~= 0.0014926
 (D-010: the source workbook hardcodes the rounded 0.0014935 instead)."""
 
 
@@ -54,7 +57,21 @@ def gas_density_g_cc(p_psia: float, mw: float, z: float, t_f: float) -> float:
     Returns
     -------
     rho_g, gas density in g/cc
+
+    Raises
+    ------
+    InputValidationError
+        If p_psia < 0, mw <= 0, or z <= 0.
     """
+    errors = []
+    if p_psia < 0:
+        errors.append(f"p_psia {p_psia} must be >= 0")
+    if mw <= 0:
+        errors.append(f"mw {mw} must be > 0")
+    if z <= 0:
+        errors.append(f"z {z} must be > 0")
+    if errors:
+        raise InputValidationError(errors)
     t_r = t_f + 459.67
     return p_psia * mw / (z * t_r) * DENSITY_COEF
 
@@ -77,7 +94,19 @@ def gas_viscosity_cp(t_f: float, mw: float, rho_g_cc: float) -> float:
     Returns
     -------
     mu_g, gas viscosity in cP
+
+    Raises
+    ------
+    InputValidationError
+        If mw <= 0 or rho_g_cc < 0.
     """
+    errors = []
+    if mw <= 0:
+        errors.append(f"mw {mw} must be > 0")
+    if rho_g_cc < 0:
+        errors.append(f"rho_g_cc {rho_g_cc} must be >= 0")
+    if errors:
+        raise InputValidationError(errors)
     t_r = t_f + 459.67
     k = (9.4 + 0.02 * mw) * t_r**1.5 / (209 + 19 * mw + t_r)
     x = 3.5 + 986 / t_r + 0.01 * mw

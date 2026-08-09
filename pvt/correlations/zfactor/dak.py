@@ -19,6 +19,8 @@ def z_factor(p_psia: float, t_r: float, tpc_r: float, ppc_psia: float, *,
         errors.append(f"pressure {p_psia} psia must be >= 0")
     if t_r <= 0 or tpc_r <= 0 or ppc_psia <= 0:
         errors.append("temperature and pseudo-criticals must be positive")
+    if z0 is not None and z0 <= 0:
+        errors.append(f"z0 {z0} must be > 0 when given")
     if errors:
         raise InputValidationError(errors)
     tpr, ppr = t_r / tpc_r, p_psia / ppc_psia

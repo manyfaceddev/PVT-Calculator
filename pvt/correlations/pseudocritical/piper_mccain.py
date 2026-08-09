@@ -18,11 +18,26 @@ See also D-004: the workbook's C7+ molecular weight is an unweighted
 average across the C7+ species; this engine mole-fraction-weights it
 (``Sigma(y_i * MW_i) / Sigma(y_i)``), which is the physically correct
 mixing rule and the one SPE 26668 itself specifies.
+
+Sour-route warning: both ``from_gravity`` and ``from_composition`` already
+take H2S/CO2/N2 into account directly in their J/K coefficients (that is
+the whole point of the alpha2/alpha1/alpha3 and beta2/beta1/beta3 terms
+above) -- their Tpc/Ppc outputs are ALREADY impurity-adjusted. Never chain
+these outputs into ``wichert_aziz.correct``: doing so double-applies the
+sour-gas correction (once inside Piper-McCain-Corredor's own coefficients,
+once again via Wichert-Aziz's e/B correction), which is wrong twice over
+-- both because the correction is applied twice, and because Wichert-Aziz
+is calibrated as a correction to SWEET-gas correlations (Sutton, SBV), not
+to a correlation that is sour-aware from the start. At 5% CO2 / 3% H2S,
+double-correcting shifts Tpc by roughly 3.5% relative to the (correct)
+single-application result -- large enough to matter for downstream Z-factor
+and viscosity calculations.
 """
 from collections.abc import Callable
 
 from pvt.core.components import KATZ_FIROOZABADI
 from pvt.core.composition import CompositionStream
+from pvt.core.exceptions import InputValidationError
 
 # Gravity form (SPE 26668) takes no library, so the three sour species'
 # Tc/Pc are pinned to the canonical KF library rows rather than a second,
@@ -67,7 +82,26 @@ def from_gravity(
         y_h2s: H2S mole FRACTION (0-1).
         y_co2: CO2 mole FRACTION (0-1).
         y_n2: N2 mole FRACTION (0-1).
+
+    Raises:
+        InputValidationError: if gas_gravity <= 0, any of y_h2s/y_co2/y_n2 is
+            outside [0, 1] (these are mole FRACTIONS, not percent), or their
+            sum exceeds 1.
     """
+    errors = []
+    if gas_gravity <= 0:
+        errors.append(f"gas_gravity {gas_gravity} must be > 0")
+    if not (0 <= y_h2s <= 1):
+        errors.append(f"y_h2s {y_h2s} must be a mole FRACTION in [0, 1] (not percent)")
+    if not (0 <= y_co2 <= 1):
+        errors.append(f"y_co2 {y_co2} must be a mole FRACTION in [0, 1] (not percent)")
+    if not (0 <= y_n2 <= 1):
+        errors.append(f"y_n2 {y_n2} must be a mole FRACTION in [0, 1] (not percent)")
+    if y_h2s + y_co2 + y_n2 > 1:
+        errors.append(f"y_h2s + y_co2 + y_n2 = {y_h2s + y_co2 + y_n2} must be <= 1")
+    if errors:
+        raise InputValidationError(errors)
+
     a0, a1, a2, a3, a4, a5 = _GRAV_ALPHA
     b0, b1, b2, b3, b4, b5 = _GRAV_BETA
 
