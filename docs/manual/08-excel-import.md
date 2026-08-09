@@ -14,10 +14,12 @@ Both importers live under `pvt/io/excel_import/` and each exposes one function, 
 
 ## 8.2 Supported Templates
 
-| Template | File | Importer module | Sheets read |
-|---|---|---|---|
-| ADRIC Flash Separation Calc v6.1 | `ADRIC_Flash_Separation_Calc_v6.1.xlsx` | `pvt.io.excel_import.flash_v61` | `Volumetrics_Master` only |
-| ADRIC LiveOil Preparation Calc v4.1 | `ADRIC_LiveOil_Preparation_Calc_v4.1.xlsx` | `pvt.io.excel_import.liveoil_v41` | `Sample_Info`, `STO_Composition`, `Gas_Composition`, `Recombination`, `Loading_Volumes` |
+| Template | File |
+|---|---|
+| ADRIC Flash Separation Calc v6.1 | `ADRIC_Flash_Separation_Calc_v6.1.xlsx` |
+| ADRIC LiveOil Preparation Calc v4.1 | `ADRIC_LiveOil_Preparation_Calc_v4.1.xlsx` |
+
+(Importer module and sheets read are covered per-template in 8.3 and 8.4 below.)
 
 The Flash v6.1 workbook carries all of its yellow inputs on one sheet; `Component_Properties`, `Recombination`, and `Plus_Properties_Report` on that workbook are downstream/computed and are not opened by the importer at all. The LiveOil v4.1 workbook spreads its inputs across five sheets, all of which are opened and validated.
 
@@ -41,21 +43,23 @@ Source: `pvt/io/excel_import/flash_v61.py`. All cells below are on the `Volumetr
 
 ### Block B: Volumetric Measurements (rows 11-21)
 
-| Cell | Field | Meaning | Units |
+Every `Field` below is a `FlashVolumetrics.*` attribute (prefix omitted in the table for width):
+
+| Cell | Field (`FlashVolumetrics.`) | Meaning | Units |
 |---|---|---|---|
-| B11 | `FlashVolumetrics.pump_constant` | Pump constant | dimensionless |
-| E11 | `FlashVolumetrics.vcf` | Volume correction factor (VCF) | dimensionless |
-| B12 | `FlashVolumetrics.pump_initial_cc` | Initial pump reading | cc |
-| E12 | `FlashVolumetrics.pump_final_cc` | Final pump reading | cc |
-| B14 | `FlashVolumetrics.v_sto_cc` | Stock tank oil volume, V_sto | cc |
-| B15 | `FlashVolumetrics.oil_tare_g` | Oil tare weight | g |
-| E15 | `FlashVolumetrics.oil_gross_g` | Final oil + tare weight | g |
-| B17 | `FlashVolumetrics.gasometer_factor` | Gasometer factor | dimensionless |
-| B18 | `FlashVolumetrics.gasometer_initial_cc` | Initial gasometer reading | cc |
-| E18 | `FlashVolumetrics.gasometer_final_cc` | Final gasometer reading | cc |
-| B20 | `FlashVolumetrics.gas_temp_c` | Gas temperature | degC |
-| B21 | `FlashVolumetrics.gas_abs_pressure_mbar` | Measured gas absolute pressure | mbar |
-| E21 | `FlashVolumetrics.gas_gravity` | Gas gravity (Air = 1) | dimensionless |
+| B11 | `pump_constant` | Pump constant | dimensionless |
+| E11 | `vcf` | Volume correction factor (VCF) | dimensionless |
+| B12 | `pump_initial_cc` | Initial pump reading | cc |
+| E12 | `pump_final_cc` | Final pump reading | cc |
+| B14 | `v_sto_cc` | Stock tank oil volume, V_sto | cc |
+| B15 | `oil_tare_g` | Oil tare weight | g |
+| E15 | `oil_gross_g` | Final oil + tare weight | g |
+| B17 | `gasometer_factor` | Gasometer factor | dimensionless |
+| B18 | `gasometer_initial_cc` | Initial gasometer reading | cc |
+| E18 | `gasometer_final_cc` | Final gasometer reading | cc |
+| B20 | `gas_temp_c` | Gas temperature | degC |
+| B21 | `gas_abs_pressure_mbar` | Measured gas absolute pressure | mbar |
+| E21 | `gas_gravity` | Gas gravity (Air = 1) | dimensionless |
 | E17 | not read | Barometric pressure | mbar |
 | E20 | not read | Back pressure | mbar |
 
@@ -98,21 +102,23 @@ Source: `pvt/io/excel_import/liveoil_v41.py`. All five required sheets are opene
 | Cell (per row 15-65) | Field | Meaning | Units |
 |---|---|---|---|
 | B{row} | component code | Component code (aliased if needed, see 7.5) | text |
-| I{row} | `sto_stream.mol_pct[code]` / `gas_stream.mol_pct[code]` | Mol% (INPUT), the only composition column read | mol% |
+| I{row} | `{stream}.mol_pct[code]` | Mol% (INPUT) on the sheet's stream (`sto_stream` or `gas_stream`); the only composition column read | mol% |
 | J{row} | not read | Wt% (INPUT); not consumed by any calc.py in this phase | wt% |
 
 ### Block D: Loading (`Loading_Volumes!B5:B12`)
 
-| Cell | Field | Meaning | Units |
+Every `Field` below is a `LoadingInputs.*` attribute (prefix omitted in the table for width):
+
+| Cell | Field (`LoadingInputs.`) | Meaning | Units |
 |---|---|---|---|
-| B5 | `LoadingInputs.cylinder_volume_cc` | Cylinder volume | cc |
-| B6 | `LoadingInputs.target_oil_cc` | Target oil volume | cc |
-| B7 | `LoadingInputs.oil_load_p_psig` | Oil-cylinder gauge pressure at loading | psig |
-| B8 | `LoadingInputs.oil_load_t_f` | Oil-cylinder temperature at loading | degF |
-| B9 | `LoadingInputs.gas_load_p_psig` | Gas-cylinder gauge pressure at loading | psig |
-| B10 | `LoadingInputs.gas_load_t_f` | Gas-cylinder temperature at loading | degF |
-| B11 | `LoadingInputs.z_gas_load` | Gas Z-factor at gas-load conditions | dimensionless |
-| B12 | `LoadingInputs.sto_density_at_load_g_cc` | STO density at oil-load conditions | g/cc |
+| B5 | `cylinder_volume_cc` | Cylinder volume | cc |
+| B6 | `target_oil_cc` | Target oil volume | cc |
+| B7 | `oil_load_p_psig` | Oil-cylinder gauge pressure at loading | psig |
+| B8 | `oil_load_t_f` | Oil-cylinder temperature at loading | degF |
+| B9 | `gas_load_p_psig` | Gas-cylinder gauge pressure at loading | psig |
+| B10 | `gas_load_t_f` | Gas-cylinder temperature at loading | degF |
+| B11 | `z_gas_load` | Gas Z-factor at gas-load conditions | dimensionless |
+| B12 | `sto_density_at_load_g_cc` | STO density at oil-load conditions | g/cc |
 | B13 | not read | BSW / water content of loaded oil | % |
 
 ### Block E: Sample Metadata (`Sample_Info!B5:B9`, `E5:E9`)

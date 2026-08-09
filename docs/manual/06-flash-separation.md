@@ -22,7 +22,7 @@ taken from `tests/golden/test_flash_sa372.py`,
 
 ## 6.1 The laboratory test
 
-![Atmospheric flash apparatus - displacement pump, flash line, stock-tank flask, and gasometer](figures/flash-apparatus.png)
+![Atmospheric flash apparatus - displacement pump, flash line, stock-tank flask, and gasometer](figures/flash-apparatus.png){width=100%}
 
 The engine's own module docstring names the method precisely:
 

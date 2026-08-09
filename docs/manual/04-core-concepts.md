@@ -297,16 +297,18 @@ The current `DEFAULTS` table, reproduced from `pvt/qc/engine.py`:
 
 | `check_id` | review\_at | fail\_at | Source | Consumed by (Phase 0-2) |
 |---|---|---|---|---|
-| `composition_sum` | 0.5 | 2.0 | ADRIC house convention (design spec Sections 5, 9: "±0.5 PASS / ±2 REVIEW") | `pvt/qc/checks/composition_normalization.py` |
+| `composition_sum` | 0.5 | 2.0 | ADRIC house convention (design spec Sections 5, 9: "±0.5 PASS / ±2 REVIEW") | `composition_normalization.py` |
 | `mass_balance_pct` | 2.0 | 3.0 | ADRIC house convention (design spec Section 9: "mass balance 2/3%") | not yet consumed by an implemented check module |
 | `molar_balance_pct` | 2.0 | 3.0 | ADRIC house convention (design spec Section 9: "molar balance 2/3%") | not yet consumed by an implemented check module |
 | `z_deviation_pct` | 2.0 | 5.0 | ADRIC house convention (design spec Section 9: "Z deviation 2/5%") | not yet consumed by an implemented check module |
 | `density_rsd_pct` | 0.5 | 1.0 | ADRIC house convention (design spec Section 9: "density %RSD 0.5/1") | not yet consumed by an implemented check module |
 | `viscosity_vs_sim_pct` | 2.0 | 5.0 | ADRIC house convention (design spec Section 9: "viscosity vs sim 2/5%") | not yet consumed by an implemented check module |
 | `mmp_mass_balance_pct` | 5.0 | 5.0 | ADRIC house convention (design spec Section 9: "MMP mass balance ±5%", a single band, represented here as equal review/fail edges) | not yet consumed by an implemented check module |
-| `gor_actual_vs_target_pct` | 5.0 | 10.0 | Documented as a house threshold in its consuming module's own docstring; not individually itemized in design spec Section 9's list | `pvt/experiments/recombination/loading.py`'s `verify_actual_gor` |
-| `mw_consistency_pct` | 5.0 | 10.0 | Documented as a house threshold in its consuming module's own docstring; not individually itemized in design spec Section 9's list | `pvt/qc/checks/mw_consistency.py` |
-| `hoffman_r2` | 0.98 | 0.95 | **Not** an ADRIC house convention: the class docstring is explicit that this pair "is proposed by engineering judgment... pending Swej calibration," because the source PVT-check sheets show this crossplot visually with no numeric R² gate of their own | `pvt/qc/checks/hoffman_crump.py` |
+| `gor_actual_vs_target_pct` | 5.0 | 10.0 | Documented as a house threshold in its consuming module's own docstring; not individually itemized in design spec Section 9's list | `loading.py`'s `verify_actual_gor` |
+| `mw_consistency_pct` | 5.0 | 10.0 | Documented as a house threshold in its consuming module's own docstring; not individually itemized in design spec Section 9's list | `mw_consistency.py` |
+| `hoffman_r2` | 0.98 | 0.95 | **Not** an ADRIC house convention: the class docstring is explicit that this pair "is proposed by engineering judgment... pending Swej calibration," because the source PVT-check sheets show this crossplot visually with no numeric R² gate of their own | `hoffman_crump.py` |
+
+All four `pvt/qc/checks/*.py` file names above (`composition_normalization.py`, `mw_consistency.py`, `hoffman_crump.py`) live under that one package; `loading.py` is the exception, living instead under `pvt/experiments/recombination/`.
 
 Three implementation details worth calling out precisely:
 

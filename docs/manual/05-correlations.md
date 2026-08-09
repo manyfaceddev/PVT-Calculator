@@ -1227,19 +1227,22 @@ independently. `test_unknown_key_raises` /
 
 ## 5.5 Summary Table
 
-| Module | Correlation | Source year | Anchor type |
-|---|---|---|---|
-| `pseudocritical/sutton.py` | Sutton | 1985 | Formula self-check (exact) |
-| `pseudocritical/sbv.py` | Stewart-Burkhardt-Voo | 1959 | Workbook golden + exact identity |
-| `pseudocritical/piper_mccain.py` | Piper, McCain & Corredor (SPE 26668) | 1993 | Workbook golden + hand-derived exact pins |
-| `pseudocritical/wichert_aziz.py` | Wichert-Aziz | 1972 | Formula self-check (hand-derived) |
-| `pseudocritical/erbar.py` | Erbar (Chao-Seader) / Hall Vc | n/a (VBA) / 1971 (Vc) | VBA line-trace (transcription self-consistency) |
-| `zfactor/dak.py` | Dranchuk & Abou-Kassem | 1975 | Workbook golden |
-| `zfactor/hall_yarborough.py` | Hall & Yarborough | 1973 | Cross-correlation check (vs DAK) |
-| `bubble_point/standing.py` | Standing | 1947 | Workbook golden + formula self-check |
-| `bubble_point/vasquez_beggs.py` | Vasquez & Beggs | 1980 | Workbook golden + cross-form round-trip |
-| `bubble_point/glaso.py` | Glaso (SPE 8016) | 1980 | Workbook golden (exact) + hand-derived magnitude |
-| `bubble_point/almarhoun.py` | Al-Marhoun | 1988 | Formula self-check + loose workbook golden |
-| `viscosity/lee_gonzalez_eakin.py` | Lee, Gonzalez & Eakin (SPE 1340) | 1966 | Workbook golden |
-| `viscosity/jossi_stiel_thodos.py` | Jossi, Stiel & Thodos (Amoco VBA variant) | 1962 | Formula self-check |
-| `viscosity/critical_volumes.py` | Vc table (Gas_Gradient VBA) | n/a (VBA transcription) | VBA spot-check (exact) |
+Module paths below are relative to `pvt/correlations/`; "Correlation" folds
+in the source year:
+
+| Module | Correlation | Anchor type |
+|---|---|---|
+| `pseudocritical/sutton.py` | Sutton (1985) | Formula self-check (exact) |
+| `pseudocritical/sbv.py` | Stewart-Burkhardt-Voo (1959) | Workbook golden + exact identity |
+| `pseudocritical/piper_mccain.py` | Piper, McCain & Corredor, SPE 26668 (1993) | Workbook golden + hand-derived exact pins |
+| `pseudocritical/wichert_aziz.py` | Wichert-Aziz (1972) | Formula self-check (hand-derived) |
+| `pseudocritical/erbar.py` | Erbar/Chao-Seader (n/a, VBA); Hall Vc (1971) | VBA line-trace (transcription self-consistency) |
+| `zfactor/dak.py` | Dranchuk & Abou-Kassem (1975) | Workbook golden |
+| `zfactor/hall_yarborough.py` | Hall & Yarborough (1973) | Cross-correlation check (vs DAK) |
+| `bubble_point/standing.py` | Standing (1947) | Workbook golden + formula self-check |
+| `bubble_point/vasquez_beggs.py` | Vasquez & Beggs (1980) | Workbook golden + cross-form round-trip |
+| `bubble_point/glaso.py` | Glaso, SPE 8016 (1980) | Workbook golden (exact) + hand-derived magnitude |
+| `bubble_point/almarhoun.py` | Al-Marhoun (1988) | Formula self-check + loose workbook golden |
+| `viscosity/lee_gonzalez_eakin.py` | Lee, Gonzalez & Eakin, SPE 1340 (1966) | Workbook golden |
+| `viscosity/jossi_stiel_thodos.py` | Jossi, Stiel & Thodos, Amoco VBA variant (1962) | Formula self-check |
+| `viscosity/critical_volumes.py` | Vc table, Gas_Gradient VBA (n/a, VBA transcription) | VBA spot-check (exact) |

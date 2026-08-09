@@ -23,7 +23,7 @@ filled ADRIC workbook. Nothing needs to be started separately; the app has
 no database and no login, everything lives for the length of the browser
 session.
 
-![Screen map of the two-page app: Flash Separation on the left, Recombination / Live Oil on the right, with the shared components each page is built from](figures/screen-map.png)
+![Screen map of the two-page app: Flash Separation on the left, Recombination / Live Oil on the right, with the shared components each page is built from](figures/screen-map.png){width=100%}
 *Figure 3.1 - The two pages, and the shared building blocks (page header, metric cards, QC pills, calc-steps expander, report download) every screen in the app is assembled from.*
 
 ## How your data flows
@@ -38,7 +38,7 @@ does clear it, deliberately, so a stale answer can never be mistaken for the
 answer to what's currently in the boxes. Fix the listed problem and submit
 again to get a fresh result.
 
-![Data flow: form entry or workbook upload feeds a validated result object, which drives metric cards, QC checks, the Hoffmann or wellstream views, calc steps, and the Excel report download](figures/app-workflow.png)
+![Data flow: form entry or workbook upload feeds a validated result object, which drives metric cards, QC checks, the Hoffmann or wellstream views, calc steps, and the Excel report download](figures/app-workflow.png){width=100%}
 *Figure 3.2 - One flow, two entry points: manual form or workbook upload, both landing on the same validated result and the same downstream rendering.*
 
 ## The Flash Separation page
@@ -47,7 +47,7 @@ Module 2 of the platform: the single-stage atmospheric flash test, water-pump
 method. This is the test that takes a live-oil sample down to stock-tank
 conditions and measures what comes off as gas and what's left as oil.
 
-![The three bench instrument blocks the Flash Separation form mirrors: the displacement pump, the stock-tank flask and balance, and the gasometer](figures/flash-apparatus.png)
+![The three bench instrument blocks the Flash Separation form mirrors: the displacement pump, the stock-tank flask and balance, and the gasometer](figures/flash-apparatus.png){width=100%}
 *Figure 3.3 - The three instrument readings the Manual Entry form is built around: pump, stock-tank flask/balance, gasometer.*
 
 The page opens on two tabs, **Upload Workbook** and **Manual Entry**. Either
@@ -70,7 +70,7 @@ fields exactly, three per row, exactly in this order:
 | Initial gasometer reading | The gas meter's counter before the flash | Read off the gasometer (water-displacement gas meter) before the flash | cc | ≥ 0 | 500.0 |
 | Final gasometer reading | The gas meter's counter after the flash | Read off the gasometer after the flash | cc | must be ≥ the initial reading | 1458.2037 |
 | Gas temperature | Room/gasometer temperature while the gas volume was read | Thermometer at the gasometer | °C | strictly between -10 and 60 | 20.0 |
-| Measured gas abs. pressure | The absolute pressure in the gasometer drum at the time of reading | Barometer/manometer at the gasometer, absolute (not gauge) | mbar | strictly between 500 and 1500 | 1012.25 |
+| Measured gas abs. pressure | The absolute pressure in the gasometer drum at the time of reading | Barometer or manometer at the gasometer, absolute (not gauge) | mbar | strictly between 500 and 1500 | 1012.25 |
 | Gas gravity (Air=1) | How heavy the flash gas is relative to air | From the lab's gas-gravity balance (measured separately, not derived from anything else on this form) | dimensionless | strictly between 0.5 and 3.0 | 1.146 |
 | Pump constant | The pump's own calibration factor | Off the pump's calibration certificate/label | dimensionless | > 0 | 1.0 |
 | Volume correction factor (VCF) | A second pump calibration correction | Off the pump's calibration sheet | dimensionless | > 0 | 1.0 |
@@ -214,7 +214,7 @@ Module 1 of the platform: preparing a live (recombined) fluid sample for PVT
 cell testing. Two tabs, **Volumetric (SF/FF)** and **Molar (composition)**,
 covering the two different ways the lab actually approaches this problem.
 
-![The recombination scheme: separator oil and separator gas (or stock-tank oil and cylinder gas) metered together to hit a target GOR, then charged into the PVT cell cylinder](figures/recombination-scheme.png)
+![The recombination scheme: separator oil and separator gas (or stock-tank oil and cylinder gas) metered together to hit a target GOR, then charged into the PVT cell cylinder](figures/recombination-scheme.png){width=100%}
 *Figure 3.4 - What "recombination" means at the bench: separator (or stock-tank) oil and gas cylinder gas, metered together to reproduce the reservoir GOR.*
 
 ### Volumetric (SF/FF) tab
@@ -309,8 +309,8 @@ Every manual-entry field, and where it comes from:
 | GOR (scf/STB) | The lab-measured gas-oil ratio to recombine to | From the flash/separator test on this sample | scf/STB | ≥ 0 | 339.0 |
 | GOR basis | Separator or Stock Tank (see above) | Which test the GOR figure above actually came from | choice | — | Stock Tank |
 | Shrinkage Factor | Same SF as the Volumetric tab | Prior flash test or lab reference | dimensionless | (0.01, 1.0] | 1.0 |
-| STO Density @60F | Stock-tank oil density at standard conditions | Pycnometer/densitometer reading on the stock-tank oil | g/cc | > 0 | 0.8196 |
-| STO MW | Stock-tank oil molecular weight | From the GC compositional analysis (mw_from_mol on the STO stream), or a lab-reported value | g/mol | > 0 | 187.05 |
+| STO Density @60F | Stock-tank oil density at standard conditions | Pycnometer or densitometer reading on the stock-tank oil | g/cc | > 0 | 0.8196 |
+| STO MW | Stock-tank oil molecular weight | From the GC compositional analysis (computed from the STO mol% composition), or a lab-reported value | g/mol | > 0 | 187.05 |
 | Gas MW | Recombination gas molecular weight | From the GC compositional analysis of the gas, or a lab-reported value | g/mol | > 0 | 26.10 |
 | Z at Standard Conditions | Gas compressibility factor at standard conditions | Usually left at the lab default unless you have a better value | dimensionless | (0.01, 2.0] | 0.99 |
 

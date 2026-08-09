@@ -1,0 +1,30 @@
+% docs/manual/pdf-header.tex — typography hardening for the PVT Lab Platform
+% software manual PDF build. Included via `pandoc -H` (a raw LaTeX header
+% inserted into the preamble) from scripts/build_manual.sh.
+%
+% Addresses table/paragraph overfull \hbox defects (text overflowing into
+% neighboring columns or off the page edge) that show up with narrow
+% longtable columns and long inline `\texttt{}` code identifiers:
+%
+%   - \emergencystretch gives the paragraph builder extra stretchable glue
+%     to reach for as a last resort before letting a line go overfull.
+%   - hyphenat[htt] enables hyphenation inside \texttt (monospace/code)
+%     text, which LaTeX disables by default, so long code tokens can break
+%     across lines instead of overflowing their (often narrow) table cell.
+%   - \tabcolsep is tightened from LaTeX's 6pt default to 4pt, giving every
+%     table column a little more usable width.
+%   - \sloppy relaxes interword spacing constraints document-wide, trading
+%     a little justification tightness for far fewer overfull lines.
+%   - fvextra redefines plain \begin{verbatim} (what pandoc emits for a
+%     fenced code block with no language tag, e.g. a literal error-message
+%     string) to wrap long lines at the page margin instead of running off
+%     it — plain LaTeX verbatim text never wraps and untagged fenced
+%     blocks don't go through pandoc's highlighted-code path, so this is
+%     the one place hyphenat/sloppy can't reach. The text itself (e.g. an
+%     exact error string quoted from the app) is untouched.
+\emergencystretch=3em
+\usepackage[htt]{hyphenat}
+\setlength{\tabcolsep}{4pt}
+\sloppy
+\usepackage{fvextra}
+\DefineVerbatimEnvironment{verbatim}{Verbatim}{breaklines=true,breakanywhere=true}

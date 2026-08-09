@@ -22,7 +22,7 @@ route produces. Equations are transcribed from
 
 ## 7.1 Purpose
 
-![Recombination scheme - stock-tank oil and separator gas metered back together into a live reservoir-fluid sample](figures/recombination-scheme.png)
+![Recombination scheme - stock-tank oil and separator gas metered back together into a live reservoir-fluid sample](figures/recombination-scheme.png){width=100%}
 
 A live-oil PVT cell needs to be charged with a fluid that reproduces the
 reservoir fluid's gas-oil ratio - separator oil and separator gas (or
@@ -95,9 +95,9 @@ pressure it is actually charged into the cylinder at ($p_{charge}$, default
 $$V_{oil,charge} = V_{oil,sep} \times \exp\!\big(c_o \times (P_{recomb} - p_{charge})\big) \tag{7.8}$$
 
 `c_o` (oil isothermal compressibility, 1/psia) is supplied by
-`pvt.experiments.recombination.compressibility.effective_c_o`, either as a
-single constant value, or evaluated from a polynomial at the reference
-(charging) pressure:
+`effective_c_o` in `pvt.experiments.recombination.compressibility`, either
+as a single constant value, or evaluated from a polynomial at the
+reference (charging) pressure:
 
 $$c_o(P) = a_0 + a_1 P + a_2 P^2 + a_3 P^3 + \dots \tag{7.9}$$
 

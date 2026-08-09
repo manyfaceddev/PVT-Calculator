@@ -190,7 +190,7 @@ Fitting a line needs at least 2 points. `_fit_least_squares` raises `InputValida
 
 ## 9.5 gor_actual_vs_target
 
-This check is **not** a module under `pvt/qc/checks/`; it is implemented inline inside `pvt.experiments.recombination.loading.verify_actual_gor` (`pvt/experiments/recombination/loading.py`), using the same `QCResult`/`grade`/`ThresholdRegistry` contract as every other check. Check ID: `gor_actual_vs_target_pct`.
+This check is **not** a module under `pvt/qc/checks/`; it is implemented inline inside `verify_actual_gor`, in `pvt.experiments.recombination.loading` (`pvt/experiments/recombination/loading.py`), using the same `QCResult`/`grade`/`ThresholdRegistry` contract as every other check. Check ID: `gor_actual_vs_target_pct`.
 
 `verify_actual_gor` runs the cylinder-loading bookkeeping (`plan_loading`) in reverse: given the oil and gas volumes actually metered into the transfer cylinder, it recovers the as-loaded GOR and grades its deviation from the target GOR.
 
@@ -233,7 +233,7 @@ Full table, `pvt/qc/engine.py`, `ThresholdRegistry.DEFAULTS`:
 | `density_rsd_pct` | 0.5 | 1.0 | ADRIC house convention | No check module yet |
 | `viscosity_vs_sim_pct` | 2.0 | 5.0 | ADRIC house convention | No check module yet |
 | `mmp_mass_balance_pct` | 5.0 | 5.0 | ADRIC house convention | No check module yet |
-| `gor_actual_vs_target_pct` | 5.0 | 10.0 | ADRIC house convention | Yes, `pvt.experiments.recombination.loading.verify_actual_gor` |
+| `gor_actual_vs_target_pct` | 5.0 | 10.0 | ADRIC house convention | Yes, `loading.verify_actual_gor` |
 | `mw_consistency_pct` | 5.0 | 10.0 | ADRIC house convention | Yes, `mw_consistency` |
 | `hoffman_r2` | 0.98 | 0.95 | Engineering judgment, pending Swej calibration (R²-floor semantics, not a deviation band) | Yes, `hoffman_crump` |
 

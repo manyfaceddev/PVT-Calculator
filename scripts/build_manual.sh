@@ -79,6 +79,7 @@ pandoc "$TITLE_FILE" "${CHAPTERS[@]}" \
     -V geometry:margin=2.5cm \
     -V documentclass=report \
     --pdf-engine=xelatex -V mainfont="Times New Roman" -V monofont="Menlo" \
+    -H "$MANUAL_DIR/pdf-header.tex" \
     --metadata title="ADRIC PVT Lab Platform, Software Manual" \
     --metadata author="ADRIC / PVT Engineering" \
     --metadata date="$VERSION"

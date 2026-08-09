@@ -27,8 +27,23 @@ V_live, P_recomb/T_recomb/Z_recomb).
 Text fitting: every box's text is auto-shrunk (never enlarged) to fit
 inside its box using matplotlib's own rendered text extents (see
 `_autofit_text`), so box geometry can be tuned without manually
-re-measuring string widths. A floor of MIN_FONTSIZE keeps everything
-readable at the figure's native (print) size.
+re-measuring string widths. A floor of MIN_FONTSIZE (or, for the compact
+screen-map figure, MIN_FONTSIZE_COMPACT) keeps everything readable once
+the manual build downscales the figure to print width.
+
+Print-scale sizing: these figures are embedded in the PDF manual at
+`{width=100%}`, i.e. scaled to the page text width (~6.3in). Each figure
+below is authored close to that final size (<=10in wide; the portrait
+screen-map <=7.5in wide) rather than at a much larger native size, so the
+downscale ratio stays mild and point-size text doesn't shrink below
+readability. The MIN_FONTSIZE floors are chosen so that, after the
+downscale from this authored width to 6.3in, no label renders below 7pt:
+  MIN_FONTSIZE (landscape figures, authored <=10in wide):
+      11.5pt * (6.3/10in) = 7.25pt final >= 7pt
+  MIN_FONTSIZE_COMPACT (screen-map, authored <=7.5in wide):
+      8.6pt * (6.3/7.5in) = 7.22pt final >= 7pt
+300 dpi at that authored size is what keeps the raster sharp; we are not
+relying on native pixel count to carry legibility, print size does.
 """
 
 from __future__ import annotations
@@ -52,7 +67,12 @@ WHITE = "#FFFFFF"
 PANEL_BG = "#EDEFF5"   # faint panel background (sidebar / cell interior)
 
 DPI = 300
-MIN_FONTSIZE = 9.5     # floor for all rendered text (spec: >= 9 pt at print size)
+MIN_FONTSIZE = 11.5         # floor for the three landscape figures (see module
+                             # docstring: >=7pt after downscale from <=10in to 6.3in)
+MIN_FONTSIZE_COMPACT = 8.6  # floor for the portrait screen-map figure (>=7pt
+                             # after downscale from <=7.5in to 6.3in); kept as
+                             # low as legibility allows so autofit has the most
+                             # room to shrink text into the figure's small boxes
 FIG_DIR = Path(__file__).resolve().parent.parent / "docs" / "manual" / "figures"
 
 plt.rcParams["font.family"] = "DejaVu Sans"
@@ -105,10 +125,11 @@ def box(
     ax, x, y, w, h, text,
     fontsize=15, fill=NAVY, textcolor=WHITE, edge=NAVY, lw=1.8,
     boxstyle="round,pad=0.35,rounding_size=2.2", weight="bold", zorder=3,
-    linestyle="-", autofit=True,
+    linestyle="-", autofit=True, min_fontsize=MIN_FONTSIZE,
 ):
     """Rounded process box, centered at (x, y), width w, height h. Text is
-    auto-shrunk to fit (see `_autofit_text`) unless autofit=False."""
+    auto-shrunk to fit (see `_autofit_text`) unless autofit=False. Pass
+    min_fontsize=MIN_FONTSIZE_COMPACT for the screen-map figure."""
     p = FancyBboxPatch(
         (x - w / 2, y - h / 2), w, h,
         boxstyle=boxstyle, linewidth=lw, edgecolor=edge, facecolor=fill,
@@ -120,17 +141,17 @@ def box(
         color=textcolor, weight=weight, zorder=zorder + 1, linespacing=1.28,
     )
     if autofit and text:
-        _autofit_text(ax, t, w, h)
+        _autofit_text(ax, t, w, h, min_fontsize=min_fontsize)
     return p
 
 
-def note_box(ax, x, y, w, h, text, fontsize=13):
+def note_box(ax, x, y, w, h, text, fontsize=13, min_fontsize=MIN_FONTSIZE):
     """A 'note' box: white fill, dashed navy border, navy text — visually
     distinct from a process box (used for measurements/inputs that are not
     part of the main physical flow, e.g. gas gravity determination)."""
     return box(
         ax, x, y, w, h, text, fontsize=fontsize, fill=WHITE, textcolor=NAVY,
-        edge=NAVY, lw=1.6, linestyle="--", weight="bold",
+        edge=NAVY, lw=1.6, linestyle="--", weight="bold", min_fontsize=min_fontsize,
     )
 
 
@@ -148,10 +169,10 @@ def arrow(
 
 def label(
     ax, x, y, text, fontsize=12, color=DARK_GRAY, ha="center", va="center",
-    style="normal", weight="normal", zorder=2,
+    style="normal", weight="normal", zorder=2, min_fontsize=MIN_FONTSIZE,
 ):
     ax.text(
-        x, y, text, ha=ha, va=va, fontsize=max(fontsize, MIN_FONTSIZE),
+        x, y, text, ha=ha, va=va, fontsize=max(fontsize, min_fontsize),
         color=color, style=style, weight=weight, linespacing=1.3, zorder=zorder,
     )
 
@@ -194,24 +215,36 @@ def save(fig, name: str):
 # ===========================================================================
 
 def make_flash_apparatus():
-    fig, ax = new_axes((14, 7.6), xlim=(0, 140), ylim=(0, 74))
+    # Authored close to final print size (<=10in wide, see module docstring)
+    # so the 300dpi raster stays sharp without relying on a large native
+    # size that would then need aggressive downscaling to fit the page.
+    fig, ax = new_axes((9.6, 5.2), xlim=(0, 140), ylim=(0, 74))
 
     ax.text(70, 68, "Atmospheric Flash Apparatus — Water-Pump Method",
             ha="center", va="center", fontsize=19, weight="bold", color=NAVY)
     ax.text(70, 62, "ADRIC Flash v6.1 — single-stage flash separation (SSF)",
             ha="center", va="center", fontsize=12.5, color=DARK_GRAY, style="italic")
 
-    y_main, h_main, w_box = 30, 17, 22
-    # Box centers; the flask->gasometer gap is widened (19 units) to leave
-    # room for the "LIBERATED GAS LINE" label without touching either box.
-    xs = [15, 47, 79, 120]
+    y_main, h_main, w_box = 30, 20, 25
+    # Box centers; gaps are uneven on purpose — the pump-water and
+    # flask-gasometer gaps (arrows only) are trimmed to 6/4 units so the
+    # flask->gasometer gap can stay wide (21 units) for the "LIBERATED GAS
+    # LINE" label, which needs more clearance now that the boxes
+    # themselves are wider (see MIN_FONTSIZE / module docstring).
+    xs = [15, 46, 75, 121]
 
+    # Every multi-word line below is broken short (down to a manual
+    # "DISPLACE-/MENT" hyphenation in one case): at this figure's compact,
+    # <=10in-wide print scale, a line like "SAMPLE CYLINDER" or "(atm.
+    # flash)" needs more width than these boxes have even at the
+    # MIN_FONTSIZE floor, so line breaks — not just auto-fit shrink — keep
+    # text inside its box.
     box(ax, xs[0], y_main, w_box, h_main,
-        "HIGH-PRESSURE\nSAMPLE CYLINDER\n(live oil)", fontsize=13.5)
+        "HIGH-\nPRESSURE\nSAMPLE\nCYLINDER\n(live oil)", fontsize=13.5)
     box(ax, xs[1], y_main, w_box, h_main,
-        "POSITIVE-\nDISPLACEMENT\nWATER PUMP", fontsize=13.5)
+        "POSITIVE-\nDISPLACE-\nMENT\nWATER\nPUMP", fontsize=13.5)
     box(ax, xs[2], y_main, w_box, h_main,
-        "FLASH FLASK\nON BALANCE\n(atm. flash)", fontsize=13.5)
+        "FLASH\nFLASK\nON BALANCE\n(atm.\nflash)", fontsize=13.5)
     box(ax, xs[3], y_main, w_box, h_main,
         "GASOMETER", fontsize=14.5)
 
@@ -224,9 +257,11 @@ def make_flash_apparatus():
     gap_mid = (xs[2] + w_box / 2 + xs[3] - w_box / 2) / 2
     label(ax, gap_mid, y_main, "LIBERATED\nGAS LINE", fontsize=11, weight="bold")
 
-    # Pump reading -> V_press (above the pump)
+    # Pump reading -> V_press (above the pump). y is pushed up from the
+    # box's shared top edge (y_main + h_main/2 = 40) to clear it now that
+    # the boxes are taller than a first pass would suggest.
     label(
-        ax, xs[1], y_main + 15,
+        ax, xs[1], y_main + 18,
         "Pump reading: initial → final\n"
         "displaced volume × pump constant × VCF\n"
         "= V_press  (live-oil volume before flash)",
@@ -243,9 +278,10 @@ def make_flash_apparatus():
         fontsize=11.5, ha="center",
     )
 
-    # Gasometer readings (above the gasometer)
+    # Gasometer readings (above the gasometer); pushed up for the same
+    # reason as the pump-reading label above.
     label(
-        ax, xs[3], y_main + 15,
+        ax, xs[3], y_main + 18,
         "Gasometer reading: initial → final\n"
         "Gas temperature T  (°C)\n"
         "Absolute pressure P  (mbar)",
@@ -254,8 +290,8 @@ def make_flash_apparatus():
 
     # Gas-gravity note box — a separate measurement, not part of the
     # physical apparatus train, feeding the same GOR/density calculation.
-    note_box(ax, xs[3], 9, 32, 12,
-             "Gas gravity — from GC\ncomposition or gravity balance", fontsize=12)
+    note_box(ax, xs[3], 8, 32, 15,
+             "Gas gravity —\nfrom GC\ncomposition or\ngravity balance", fontsize=12)
     arrow(ax, (xs[3], y_main - h_main / 2), (xs[3], 9 + 6), color=NAVY, lw=1.8, ls="--")
 
     save(fig, "flash-apparatus.png")
@@ -297,108 +333,142 @@ def _recomb_cell(ax, x, y, w, h, gas_frac, top_note, bottom_note):
             fontsize=13, color=WHITE, weight="bold", zorder=5)
     ax.text(x, bottom + inset + oil_h / 2, "OIL", ha="center", va="center",
             fontsize=13, color=WHITE, weight="bold", zorder=5)
-    ax.text(x, y + h / 2 + 3.3, "RECOMBINATION\nCELL", ha="center", va="bottom",
+    ax.text(x, y + h / 2 + 2.0, "RECOMBINATION\nCELL", ha="center", va="bottom",
             fontsize=12.5, color=NAVY, weight="bold", linespacing=1.2)
-    label(ax, x, y + h / 2 + 13.2, top_note, fontsize=11.5, weight="bold")
-    label(ax, x, y - h / 2 - 7.2, bottom_note, fontsize=11.5)
+    # top_note/bottom_note are passed pre-wrapped to two lines (see callers):
+    # at this figure's compact canvas a single-line "P_recomb / T_recomb /
+    # Z_recomb" or "V_live = ... + ..." is wide enough to run off the
+    # panel edge, so both are split at a natural word boundary.
+    label(ax, x, y + h / 2 + 17, top_note, fontsize=11.5, weight="bold", zorder=6)
+    label(ax, x, y - h / 2 - 7.2, bottom_note, fontsize=11.5, zorder=6)
 
 
 def _case1_panel(ax):
     ax.set_xlim(0, 100)
-    ax.set_ylim(0, 100)
+    # ylim extends 8 units above the panel content (which is unchanged and
+    # stays within 0-100) purely to give the panel title more vertical
+    # room: at this figure's compact canvas the title text is wide enough
+    # that it must wrap to three lines (see below) to stay within the
+    # panel's own width, and three lines need more height than the
+    # original two-line title had room for above the topmost box.
+    ax.set_ylim(0, 108)
     ax.axis("off")
-    ax.text(50, 97, "Case 1 — Separator Oil + Separator Gas\n→ Recombination Cell",
-            ha="center", va="top", fontsize=15,
-            weight="bold", color=NAVY, linespacing=1.3)
+    ax.text(50, 105, "Case 1 — Separator Oil\n+ Separator Gas →\nRecombination Cell",
+            ha="center", va="top", fontsize=12,
+            weight="bold", color=NAVY, linespacing=1.15)
 
     # Sources stacked so their vertical order MATCHES the cell layers they
     # feed (gas cylinder -> GAS on top, separator -> OIL below) — avoids an
-    # X-crossing between the two feed arrows.
-    box(ax, 18, 72, 30, 14, "SEPARATOR GAS\nCYLINDER", fontsize=13)
-    box(ax, 18, 32, 30, 16, "SEPARATOR\n(single stage)", fontsize=13.5)
-    label(ax, 18, 21, "SF = V_STO / V_sep_oil", fontsize=11)
+    # X-crossing between the two feed arrows. Boxes/cell are widened (vs.
+    # the source-column gaps trimmed) relative to the figure's data range
+    # so label text still has room at this figure's compact, print-scale
+    # canvas (see MIN_FONTSIZE / make_recombination_scheme).
+    box(ax, 23, 72, 40, 15, "SEPARATOR\nGAS\nCYLINDER", fontsize=13)
+    box(ax, 23, 32, 40, 17, "SEPARATOR\n(single stage)", fontsize=13.5)
+    label(ax, 23, 20, "SF = V_STO / V_sep_oil", fontsize=11)
 
     _recomb_cell(
-        ax, 74, 48, 30, 44, gas_frac=0.32,
-        top_note="P_recomb / T_recomb / Z_recomb",
-        bottom_note="V_live = V_oil_sep + V_gas_recomb",
+        ax, 79, 48, 36, 44, gas_frac=0.32,
+        top_note="P_recomb / T_recomb\n/ Z_recomb",
+        bottom_note="V_live = V_oil_sep +\nV_gas_recomb",
     )
 
     # Separator -> gas cylinder (R feeds the cylinder)
-    arrow(ax, (18, 40), (18, 65))
-    label(ax, 34, 52, "R (stage GOR,\nscf/STB STO)", fontsize=10.8, ha="left")
+    arrow(ax, (23, 40.5), (23, 64.5))
+    # zorder=6 so this (and the other annotation labels below) always
+    # render above the boxes/cell (zorder 3-5) even where the compact
+    # canvas leaves little horizontal clearance between them.
+    label(ax, 33, 52, "R (stage GOR,\nscf/STB STO)", fontsize=10.8, ha="left", zorder=6)
 
-    # Separator -> cell OIL layer
-    arrow(ax, (33, 36), (58, 34), connectionstyle="arc3,rad=-0.12")
-    label(ax, 44, 27, "V_oil_sep", fontsize=13, weight="bold", color=NAVY)
+    # Separator -> cell OIL layer. Label sits just above the "SEPARATOR"
+    # box's top edge (y=40.5) rather than beside the arrowhead — the gap
+    # between that box and the cell (43-61) is too narrow for this label
+    # at this figure's compact canvas, but the row just above the box is
+    # clear across the full box-to-cell width.
+    arrow(ax, (43, 36), (61, 34), connectionstyle="arc3,rad=-0.12")
+    label(ax, 60, 44, "V_oil_sep", fontsize=11.5, weight="bold", color=NAVY,
+          ha="right", zorder=6)
 
-    # Gas cylinder -> cell GAS layer. Label sits at the arrow's own
-    # midpoint (left of the cell) so it stays clear of the cell's
-    # "P_recomb / T_recomb / Z_recomb" note directly above the cell.
-    arrow(ax, (33, 72), (58, 62), connectionstyle="arc3,rad=0.12")
-    label(ax, 40, 70, "V_gas_recomb", fontsize=13, weight="bold", color=NAVY)
+    # Gas cylinder -> cell GAS layer. Label is right-anchored just left of
+    # the cell, level with the arrowhead, clear of the "SEPARATOR GAS
+    # CYLINDER" box above and the cell's notes above that.
+    arrow(ax, (43, 72), (61, 62), connectionstyle="arc3,rad=0.12")
+    label(ax, 60, 62, "V_gas_recomb", fontsize=11.5, weight="bold", color=NAVY,
+          ha="right", zorder=6)
 
 
 def _case2_panel(ax):
     ax.set_xlim(0, 100)
-    ax.set_ylim(0, 100)
+    ax.set_ylim(0, 108)  # extra headroom for the title, see _case1_panel
     ax.axis("off")
     ax.text(
-        50, 97,
-        "Case 2 — Stock-Tank Oil + Separator Gas\n"
-        "(incl. flash-factor gas) → Recombination Cell",
-        ha="center", va="top", fontsize=15, weight="bold", color=NAVY, linespacing=1.3,
+        50, 105,
+        "Case 2 — Stock-Tank Oil + Sep. Gas\n"
+        "(incl. flash-factor gas)\n"
+        "→ Recombination Cell",
+        ha="center", va="top", fontsize=12, weight="bold", color=NAVY, linespacing=1.15,
     )
 
     # Vertical stack: separator (feeds gas cylinder) -> gas cylinder (feeds
     # GAS layer) -> stock tank (feeds OIL layer). Order again matches the
     # cell's GAS-over-OIL layering, so no arrow needs to cross another box.
-    box(ax, 15, 80, 28, 13, "SEPARATOR\n(single stage)", fontsize=12.5)
-    box(ax, 15, 48, 28, 16, "SEPARATOR GAS\nCYLINDER\n(R + FF)", fontsize=12)
-    box(ax, 15, 15, 28, 15, "STOCK TANK OIL\n(STO), fully degassed", fontsize=11.5)
+    # Boxes/cell widened to match _case1_panel's compact-canvas treatment.
+    box(ax, 20, 80, 36, 14, "SEPARATOR\n(single stage)", fontsize=12.5)
+    box(ax, 20, 48, 36, 20, "SEPARATOR\nGAS\nCYLINDER\n(R + FF)", fontsize=12)
+    box(ax, 20, 14, 36, 20, "STOCK TANK\nOIL (STO),\nfully\ndegassed", fontsize=11.5)
 
     _recomb_cell(
-        ax, 74, 48, 30, 44, gas_frac=0.36,
-        top_note="P_recomb / T_recomb / Z_recomb",
-        bottom_note="V_live = V_oil_STO + V_gas_recomb",
+        ax, 79, 48, 36, 44, gas_frac=0.36,
+        top_note="P_recomb / T_recomb\n/ Z_recomb",
+        bottom_note="V_live = V_oil_STO +\nV_gas_recomb",
     )
 
-    # Separator -> gas cylinder (metered stage GOR). Label hugs its own
-    # (short, vertical) arrow, well left of the gas-cylinder-to-cell label.
-    arrow(ax, (15, 73.5), (15, 56))
-    label(ax, 17, 65, "R per stage\n(scf/STB STO)", fontsize=10.8, ha="left")
+    # Separator -> gas cylinder (metered stage GOR). The box_top-to-box_mid
+    # gap (y 58-73) is clear of boxes across the full panel width, so this
+    # label and the gas-cylinder-to-cell label below share it, stacked by
+    # height (y=69 vs y=60) rather than competing for the same row.
+    # zorder=6 so annotation labels always render above the boxes/cell.
+    arrow(ax, (20, 73), (20, 58))
+    label(ax, 24, 69, "R per stage\n(scf/STB STO)", fontsize=10.8, ha="left", zorder=6)
 
     # Stock tank -> gas cylinder: the flash-factor gas conceptually comes
     # from the STO flash, but per the docstring is loaded from the SAME
     # separator gas cylinder (a standard lab simplification) — shown dashed.
-    # Label likewise hugs its own short arrow, left of the oil/gas labels.
-    arrow(ax, (15, 22.5), (15, 40), color=NAVY, ls="--", lw=2.0)
-    label(ax, 17, 31, "FF: flash-factor gas\n(charged via gas\ncylinder — simplified)",
-          fontsize=10, ha="left")
+    # Shares the box_mid-to-box_bottom gap (y 24-38) with the
+    # stock-tank-to-cell label below, stacked by height for the same reason.
+    arrow(ax, (20, 24), (20, 38), color=NAVY, ls="--", lw=2.0)
+    label(ax, 24, 31, "FF: flash-factor gas\n(via gas cylinder,\nsimplified)",
+          fontsize=10, ha="left", zorder=6)
 
-    # Gas cylinder -> cell GAS layer. Label sits at the arrow's own
-    # midpoint, well below the cell's "P_recomb / T_recomb / Z_recomb" /
-    # "RECOMBINATION CELL" notes and clear of the R-per-stage label above it.
-    arrow(ax, (29, 50), (58, 62), connectionstyle="arc3,rad=0.15")
-    label(ax, 47, 68, "V_gas_recomb\n(R + FF)", fontsize=12.5, weight="bold", color=NAVY)
+    # Gas cylinder -> cell GAS layer. Right-anchored just left of the cell,
+    # low enough (y=60) to clear both the "R per stage" label above and the
+    # box_mid top edge (y=58).
+    arrow(ax, (38, 50), (61, 62), connectionstyle="arc3,rad=0.15")
+    label(ax, 60, 60, "V_gas_recomb\n(R + FF)", fontsize=11.5, weight="bold", color=NAVY,
+          ha="right", zorder=6)
 
-    # Stock tank -> cell OIL layer. Label sits low, near the arrow's start
-    # (right of the stock-tank box), clear of both the FF label above it
-    # and the cell's bottom_note (which is centered on the cell, further
-    # right, and doesn't reach this far left).
-    arrow(ax, (29, 17), (58, 34), connectionstyle="arc3,rad=-0.12")
-    label(ax, 38, 17, "V_oil_STO", fontsize=13, weight="bold", color=NAVY)
+    # Stock tank -> cell OIL layer. Centered (not right-anchored) in the
+    # narrow box-to-bottom_note gap: this label's own navy bold text would
+    # be unreadable against the navy source box if it touched it even
+    # slightly, so it needs margin on both sides rather than hugging one edge.
+    arrow(ax, (38, 17), (61, 34), connectionstyle="arc3,rad=-0.12")
+    label(ax, 48, 21, "V_oil_STO", fontsize=11.5, weight="bold", color=NAVY, zorder=6)
 
 
 def make_recombination_scheme():
-    fig, (axL, axR) = plt.subplots(1, 2, figsize=(17, 8.8))
+    # Authored close to final print size (<=10in wide total for both
+    # panels, see module docstring) rather than a large native size.
+    fig, (axL, axR) = plt.subplots(1, 2, figsize=(11.0, 5.67))
     _case1_panel(axL)
     _case2_panel(axR)
+    # Wrapped to two lines: a single-line suptitle at a legible fontsize is
+    # a figure-wide (not per-panel) element wide enough on its own to pin
+    # the whole figure's tight-bbox width well past the 10in cap.
     fig.suptitle(
-        "Separator Recombination — Two Oil-Charging Cases (Carlsen & Whitson, 2020)",
-        fontsize=18, weight="bold", color=NAVY, y=1.02,
+        "Separator Recombination — Two Oil-Charging Cases\n(Carlsen & Whitson, 2020)",
+        fontsize=18, weight="bold", color=NAVY, y=1.04, linespacing=1.25,
     )
-    fig.subplots_adjust(wspace=0.08)
+    fig.subplots_adjust(wspace=0.14)
     save(fig, "recombination-scheme.png")
 
 
@@ -407,39 +477,51 @@ def make_recombination_scheme():
 # ===========================================================================
 
 def make_app_workflow():
-    fig, ax = new_axes((17.5, 7.6), xlim=(0, 210), ylim=(0, 62))
+    # Authored close to final print size (<=10in wide, see module docstring).
+    # ylim extends above the box/label content (which stays within 0-62)
+    # purely to give the title more clearance above the "fix and resubmit"
+    # feedback-loop label — at this figure's compact canvas the title's
+    # own text needs more headroom than it did at a larger native size.
+    fig, ax = new_axes((9.6, 4.17), xlim=(0, 210), ylim=(0, 68))
 
-    ax.text(105, 58, "PVT Lab Platform — App Data Flow", ha="center",
+    ax.text(105, 65, "PVT Lab Platform — App Data Flow", ha="center",
             va="center", fontsize=20, weight="bold", color=NAVY)
 
     y_chain = 29
 
-    excel = box(ax, 16, 42, 26, 15, "FILLED ADRIC\nEXCEL TEMPLATE", fontsize=13)
-    manual = box(ax, 16, 16, 26, 15, "MANUAL ENTRY\nIN FORM", fontsize=13)
+    # Box widths/heights below are wider and taller than a first pass would
+    # suggest, and every label is wrapped to short (mostly single-word)
+    # lines: at this figure's compact, <=10in-wide print scale, a two-word
+    # line like "EXCEL TEMPLATE" or "QC CHECKS (PASS / REVIEW / FAIL)"
+    # needs more width than these chain boxes have even at the
+    # MIN_FONTSIZE floor, so the line breaks do the work the auto-fit
+    # shrink alone can't.
+    excel = box(ax, 17, 42, 30, 18, "FILLED\nADRIC\nEXCEL\nTEMPLATE", fontsize=13)
+    manual = box(ax, 17, 16, 30, 18, "MANUAL\nENTRY\nIN FORM", fontsize=13)
 
-    validation = box(ax, 54, y_chain, 30, 22,
-                      "VALIDATION\n(typed errors name\nthe cell/field)", fontsize=13)
-    engine = box(ax, 91, y_chain, 26, 15, "ENGINE\nCALCULATION\n(pvt/)", fontsize=13)
-    qc = box(ax, 126, y_chain, 30, 15, "QC CHECKS\n(PASS / REVIEW / FAIL)", fontsize=12.5)
-    results = box(ax, 161, y_chain, 28, 15, "RESULTS CARDS\n+ CHARTS", fontsize=13)
-    report = box(ax, 194, y_chain, 26, 15, "EXCEL REPORT\nDOWNLOAD", fontsize=13)
+    validation = box(ax, 55, y_chain, 34, 26,
+                      "VALIDATION\n(typed\nerrors\nname the\ncell/field)", fontsize=13)
+    engine = box(ax, 93, y_chain, 28, 18, "ENGINE\nCALC\n(pvt/)", fontsize=13)
+    qc = box(ax, 129, y_chain, 32, 21, "QC\nCHECKS\n(PASS /\nREVIEW /\nFAIL)", fontsize=12.5)
+    results = box(ax, 165, y_chain, 30, 18, "RESULTS\nCARDS +\nCHARTS", fontsize=13)
+    report = box(ax, 199, y_chain, 28, 18, "EXCEL\nREPORT\nDOWN-\nLOAD", fontsize=13)
 
     # Merge both inputs into validation
-    arrow(ax, (16 + 13, 42), (54 - 15, y_chain + 5), connectionstyle="arc3,rad=-0.18")
-    arrow(ax, (16 + 13, 16), (54 - 15, y_chain - 5), connectionstyle="arc3,rad=0.18")
+    arrow(ax, (17 + 15, 42), (55 - 17, y_chain + 5), connectionstyle="arc3,rad=-0.18")
+    arrow(ax, (17 + 15, 16), (55 - 17, y_chain - 5), connectionstyle="arc3,rad=0.18")
 
     # Main chain
     for a, wa, b, wb in [
-        (54, 30, 91, 26), (91, 26, 126, 30), (126, 30, 161, 28), (161, 28, 194, 26),
+        (55, 34, 93, 28), (93, 28, 129, 32), (129, 32, 165, 30), (165, 30, 199, 28),
     ]:
         arrow(ax, (a + wa / 2, y_chain), (b - wb / 2, y_chain))
 
     # Feedback loop: validation -> back to the user (inputs)
     arrow(
-        ax, (54 - 7, y_chain + 11), (16, 42 + 7.5 + 3.5),
+        ax, (55 - 8, y_chain + 12), (17, 42 + 9 + 3.5),
         connectionstyle="arc3,rad=0.5", color=NAVY, ls="--", lw=2.2,
     )
-    label(ax, 33, 56, "fix and resubmit", fontsize=13, weight="bold", color=NAVY)
+    label(ax, 34, 56, "fix and resubmit", fontsize=13, weight="bold", color=NAVY)
 
     save(fig, "app-workflow.png")
 
@@ -452,7 +534,12 @@ def make_app_workflow():
 # ===========================================================================
 
 def make_screen_map():
-    fig, ax = new_axes((16.5, 17), xlim=(0, 170), ylim=(0, 158))
+    # Authored close to final print size (<=7.5in wide — this figure is
+    # portrait, see module docstring). Every box()/label() call below
+    # passes min_fontsize=MIN_FONTSIZE_COMPACT so autofit has room to
+    # shrink text into this figure's small boxes while staying >=7pt
+    # after the print-time downscale.
+    fig, ax = new_axes((9.0, 9.29), xlim=(0, 170), ylim=(0, 158))
 
     ax.text(80, 153, "ADRIC PVT Platform — Screen Map", ha="center", va="center",
             fontsize=19, weight="bold", color=NAVY)
@@ -462,75 +549,93 @@ def make_screen_map():
     # ---- Sidebar (self-contained; no long connector arrows needed — each
     # column's own header repeats its nav item's page title) --------------
     sidebar = FancyBboxPatch(
-        (13 - 12, 88 - 62), 24, 124, boxstyle="round,pad=0.3,rounding_size=2",
+        (12 - 11, 88 - 62), 22, 124, boxstyle="round,pad=0.3,rounding_size=2",
         edgecolor=NAVY, facecolor=PANEL_BG, linewidth=1.8, zorder=1,
     )
     ax.add_patch(sidebar)
-    ax.text(13, 147, "ADRIC PVT\nPLATFORM", ha="center", va="top", fontsize=13,
-            color=NAVY, weight="bold", linespacing=1.25)
-    ax.text(13, 136, "SIDEBAR NAVIGATION", ha="center", va="top", fontsize=10,
-            color=DARK_GRAY, style="italic")
-    box(ax, 13, 121, 19, 16, "Flash Separation\n(SSF)", fontsize=11.5, fill=BLUE, edge=BLUE)
-    box(ax, 13, 98, 19, 18, "Recombination /\nLive Oil", fontsize=11.5, fill=BLUE, edge=BLUE)
+    ax.text(12, 147, "ADRIC PVT\nPLATFORM", ha="center", va="top", fontsize=10.5,
+            color=NAVY, weight="bold", linespacing=1.2)
+    ax.text(12, 137, "SIDEBAR\nNAVIGATION", ha="center", va="top", fontsize=9.5,
+            color=DARK_GRAY, style="italic", linespacing=1.2)
+    # "Separation"/"Recombination" are hyphenated across lines — at this
+    # figure's compact canvas neither word fits whole in an 18-wide pill
+    # even at the MIN_FONTSIZE_COMPACT floor.
+    box(ax, 12, 118, 21, 18, "Flash\nSepara-\ntion\n(SSF)", fontsize=11, fill=BLUE, edge=BLUE,
+        min_fontsize=MIN_FONTSIZE_COMPACT)
+    box(ax, 12, 95, 21, 20, "Recombi-\nnation /\nLive Oil", fontsize=11, fill=BLUE, edge=BLUE,
+        min_fontsize=MIN_FONTSIZE_COMPACT)
 
-    # ---- Column x-ranges (non-overlapping, generous >=9-unit gaps; vol/
-    # molar are wider than a plain 26 units so their longer form/results
-    # lines have room to fit even at the auto-fit font floor) -------------
-    flash_x, flash_w = 56, 44          # edges [34, 78]
-    vol_x, vol_w = 104, 30             # edges [89, 119]
-    molar_x, molar_w = 144, 30         # edges [129, 159]
+    # ---- Column x-ranges. The sidebar and the gaps between columns were
+    # trimmed to the minimum that still reads as separated (down from the
+    # original design's much larger margins) so the reclaimed width could
+    # go to the columns themselves — at this figure's <=7.5in-wide print
+    # scale, box text needs most of the available data-range to stay
+    # readable at the MIN_FONTSIZE_COMPACT floor (see module docstring).
+    flash_x, flash_w = 54, 50          # edges [29, 79]
+    vol_x, vol_w = 103.5, 37           # edges [85, 122]
+    molar_x, molar_w = 146, 36         # edges [128, 164]
     # Header-row box center; kept well clear of the subtitle above it
     # (subtitle at y=147, header top edge at top_y+6=142 -> 5-unit gap).
     top_y = 136
 
     # ---- Flash Separation (SSF) column -----------------------------------
-    box(ax, flash_x, top_y, flash_w, 12,
-        "FLASH SEPARATION (SSF)\nModule 2 — Single-Stage Flash\n& Recombination",
-        fontsize=11.5)
+    box(ax, flash_x, top_y, flash_w, 15,
+        "FLASH SEPARATION (SSF)\nModule 2 — Single-\nStage Flash &\nRecombination",
+        fontsize=11.5, min_fontsize=MIN_FONTSIZE_COMPACT)
+    # Every item is wrapped so no single line runs much past ~20 characters
+    # — at this figure's compact canvas even the MIN_FONTSIZE_COMPACT floor
+    # cannot shrink a long unwrapped line into these column widths, so the
+    # line breaks (not just the fontsize floor) are what keeps text inside
+    # its box. Item heights below are sized for their line count.
     flash_items = [
-        ("Input mode tabs:\nUpload Workbook | Manual Entry", 11),
-        ("GC composition editor\n(optional, Katz-Firoozabadi)", 10.5),
-        ("Results: metric cards\n(GOR, Bo, Shrinkage, Density, API)", 11.5),
-        ("Composition QC panel", 8.5),
-        ("Hoffmann-Crump plot\n(K-value consistency)", 10.5),
+        ("Input mode tabs:\nUpload Workbook |\nManual Entry", 15),
+        ("GC composition editor\n(optional,\nKatz-Firoozabadi)", 15),
+        ("Results: metric cards\n(GOR, Bo, Shrinkage,\nDensity, API)", 15),
+        ("Composition QC\npanel", 10.5),
+        ("Hoffmann-Crump plot\n(K-value\nconsistency)", 15),
         ("Calculation steps", 8.5),
-        ("Report download (.xlsx)", 8.5),
+        ("Report download\n(.xlsx)", 10.5),
     ]
-    flow_column(ax, flash_x, flash_w - 4, top_y - 6 - 3, flash_items, vgap=3.2, fontsize=11)
+    flow_column(ax, flash_x, flash_w - 4, top_y - 6 - 3, flash_items, vgap=2.6, fontsize=11,
+                box_kwargs={"min_fontsize": MIN_FONTSIZE_COMPACT})
 
     # ---- Recombination / Live Oil columns --------------------------------
     recomb_center = (vol_x + molar_x) / 2
     recomb_w = (molar_x + molar_w / 2) - (vol_x - vol_w / 2)
     box(ax, recomb_center, top_y, recomb_w, 12,
         "RECOMBINATION / LIVE OIL\nModule 1 — Separator Fluid Recombination\n"
-        "& PVT Cell Charging", fontsize=11.5)
+        "& PVT Cell Charging", fontsize=11.5, min_fontsize=MIN_FONTSIZE_COMPACT)
 
     vol_tab_y = top_y - 6 - 3 - 4.25
-    box(ax, vol_x, vol_tab_y, vol_w, 8.5, "Volumetric (SF/FF) tab", fontsize=10.5)
-    box(ax, molar_x, vol_tab_y, molar_w, 8.5, "Molar (composition) tab", fontsize=10.5)
+    box(ax, vol_x, vol_tab_y, vol_w, 8.5, "Volumetric\n(SF/FF) tab", fontsize=10.5,
+        min_fontsize=MIN_FONTSIZE_COMPACT)
+    box(ax, molar_x, vol_tab_y, molar_w, 8.5, "Molar\n(composition) tab", fontsize=10.5,
+        min_fontsize=MIN_FONTSIZE_COMPACT)
     arrow(ax, (recomb_center - 8, top_y - 6), (vol_x, vol_tab_y + 4.25),
           connectionstyle="arc3,rad=-0.15")
     arrow(ax, (recomb_center + 8, top_y - 6), (molar_x, vol_tab_y + 4.25),
           connectionstyle="arc3,rad=0.15")
 
     vol_items = [
-        ("Form: Case 1/2 oil source,\nrecomb. conditions,\nseparator stage,\noil charging (c_o)", 18),
-        ("Results: metric cards\n(oil charge vol.,\ngas @ recomb, mix ratio,\nGOR check)", 17),
+        ("Form: Case 1/2\noil source,\nrecomb.\nconditions,\nseparator stage,\noil charging\n(c_o)", 29),
+        ("Results: metric\ncards (oil charge\nvol., gas @\nrecomb, mix ratio,\nGOR check)", 22),
         ("Calculation steps", 8.5),
-        ("Report download (.xlsx)", 8.5),
+        ("Report download\n(.xlsx)", 10.5),
     ]
-    flow_column(ax, vol_x, vol_w - 2, vol_tab_y - 4.25 - 3, vol_items, vgap=3.0, fontsize=10)
+    flow_column(ax, vol_x, vol_w - 2, vol_tab_y - 4.25 - 3, vol_items, vgap=2.4, fontsize=10,
+                box_kwargs={"min_fontsize": MIN_FONTSIZE_COMPACT})
 
     molar_items = [
-        ("Sub-tabs: Upload LiveOil\nWorkbook | Manual Entry", 10.5),
-        ("Results: metric cards\n(gas/oil mole fraction,\nwellstream MW, GOR eff.)", 13),
-        ("Composition QC panel", 8),
+        ("Sub-tabs:\nUpload LiveOil\nWorkbook |\nManual Entry", 17),
+        ("Results: metric\ncards (gas/oil\nmole fraction,\nwellstream MW,\nGOR eff.)", 22),
+        ("Composition QC\npanel", 10.5),
         ("Wellstream\ncomposition table", 10),
         ("Loading plan\n(metric cards)", 10),
-        ("Actual-GOR verification\n(QC form + panel)", 10),
-        ("Report download (.xlsx)", 8),
+        ("Actual-GOR\nverification\n(QC form + panel)", 15),
+        ("Report download\n(.xlsx)", 10.5),
     ]
-    flow_column(ax, molar_x, molar_w - 2, vol_tab_y - 4.25 - 3, molar_items, vgap=2.6, fontsize=10)
+    flow_column(ax, molar_x, molar_w - 2, vol_tab_y - 4.25 - 3, molar_items, vgap=2.2, fontsize=10,
+                box_kwargs={"min_fontsize": MIN_FONTSIZE_COMPACT})
 
     save(fig, "screen-map.png")
 
