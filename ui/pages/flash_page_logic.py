@@ -69,9 +69,14 @@ FIELD_RANGES: dict[str, tuple[float, float | None]] = {
     "oil_gross_g": (0.0, None),
     "gasometer_initial_cc": (0.0, None),
     "gasometer_final_cc": (0.0, None),
-    "gas_temp_c": (-10.0, 60.0),  # validate.py Rule 7 (exclusive)
-    "gas_abs_pressure_mbar": (500.0, 1500.0),  # validate.py Rule 6 (exclusive)
-    "gas_gravity": (0.5, 3.0),  # validate.py Rule 5 (exclusive)
+    # validate.py Rules 5-7 are strictly EXCLUSIVE bands (-10 < t < 60, etc.);
+    # a plain min_value/max_value on st.number_input is inclusive, so typing
+    # exactly the boundary would pass the widget but fail validate() one
+    # click later. Tightened by 0.01 (a value no realistic lab reading needs)
+    # so the widget itself can't submit the excluded boundary.
+    "gas_temp_c": (-9.99, 59.99),  # validate.py Rule 7: -10 < t < 60
+    "gas_abs_pressure_mbar": (500.01, 1499.99),  # validate.py Rule 6: 500 < p < 1500
+    "gas_gravity": (0.51, 2.99),  # validate.py Rule 5: 0.5 < g < 3.0
     "pump_constant": (0.01, None),
     "vcf": (0.01, None),
     "gasometer_factor": (0.01, None),
@@ -137,6 +142,31 @@ def streams_from_composition_df(
         else None
     )
     return oil_stream, gas_stream
+
+
+def hoffman_overlap_codes(gas_stream: CompositionStream, oil_stream: CompositionStream) -> set[str]:
+    """Component codes with a positive mole fraction in BOTH streams'
+    normalized mol% bases -- the same "qualifying component" test
+    `pvt.qc.checks.hoffman_crump.check` applies internally (one crossplot
+    point per such code).
+
+    Exposed here so the page can precheck this *before* calling into the
+    engine: with fewer than two qualifying codes, `hoffman_crump.check`'s
+    least-squares fit divides by `n` (0 or 1 points) or, degenerately, by an
+    `ss_xx` of zero (e.g. two points that happen to share an F-factor) --
+    both `ZeroDivisionError`, not the `InputValidationError` the rest of
+    this page's QC calls catch. A manual-entry composition with little or no
+    overlap between the two streams (e.g. gas all `C1`, oil all `C10`) is a
+    realistic way to reach this, not just a contrived one.
+
+    Callers must only pass streams that already carry a mol% basis (i.e.
+    ones that survived a prior `mw_consistency.check` or equivalent) --
+    `normalized_mol()` itself raises `InputValidationError` on a stream with
+    no mol% basis at all, which this function does not catch.
+    """
+    gas_mol = gas_stream.normalized_mol()
+    oil_mol = oil_stream.normalized_mol()
+    return {code for code, y in gas_mol.items() if y > 0 and oil_mol.get(code, 0.0) > 0}
 
 
 def read_uploaded_bytes(data: bytes) -> flash_v61.FlashImport:

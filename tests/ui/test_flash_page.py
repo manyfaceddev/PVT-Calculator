@@ -43,8 +43,10 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from pvt.core.components import KATZ_FIROOZABADI as KF
+from pvt.core.composition import CompositionStream
 from pvt.experiments.flash.recombine import recombine_mass
 from tests.fixtures import sa372_flash as fx
+from tests.unit.experiments.test_flash_validate import SA372
 from ui.pages import flash_page_logic
 
 WB = Path("tests/fixtures/workbooks/ADRIC_Flash_Separation_Calc_v6.1.xlsx")
@@ -147,3 +149,72 @@ def test_streams_from_composition_df_round_trips_recombination_golden() -> None:
     assert gas_stream is not None
     recomb = recombine_mass(13.71, 1.32095, oil_stream, gas_stream)
     assert recomb.wf_gas == pytest.approx(0.0878821, rel=1e-5)
+
+
+def _run_with_active_streams(
+    oil_stream: CompositionStream, gas_stream: CompositionStream
+) -> AppTest:
+    """Drive the page's shared-results section directly by pre-seeding
+    `st.session_state["flash.active"]` before `.run()` (AppTest supports
+    this), bypassing the manual form/composition editor entirely. Needed
+    here because `st.data_editor` isn't AppTest-scriptable (see module
+    docstring) -- this is the only way to reach the composition-QC/Hoffmann
+    branch with an arbitrary, precisely-controlled composition."""
+    at = AppTest.from_file("ui/pages/flash_page.py")
+    at.session_state["flash.active"] = {
+        "volumetrics": SA372,
+        "oil_stream": oil_stream,
+        "gas_stream": gas_stream,
+        "sample": flash_page_logic.MANUAL_SAMPLE,
+    }
+    at.run()
+    return at
+
+
+def test_hoffman_overlap_codes_below_threshold_cases() -> None:
+    """Logic-level check of `hoffman_overlap_codes` itself, isolating the
+    counting logic from the page: zero overlap (disjoint streams) and
+    single overlap (one shared, positive-mole-fraction code) both return
+    fewer than the 2 points `hoffman_crump.check`'s least-squares fit needs
+    to avoid a ZeroDivisionError."""
+    gas_disjoint = CompositionStream(library=KF, mol_pct={"C1": 100.0}, wt_pct={"C1": 100.0})
+    oil_disjoint = CompositionStream(library=KF, mol_pct={"C10": 100.0}, wt_pct={"C10": 100.0})
+    assert flash_page_logic.hoffman_overlap_codes(gas_disjoint, oil_disjoint) == set()
+
+    gas_one = CompositionStream(
+        library=KF, mol_pct={"C1": 50.0, "C2": 50.0}, wt_pct={"C1": 50.0, "C2": 50.0}
+    )
+    oil_one = CompositionStream(
+        library=KF, mol_pct={"C1": 50.0, "C10": 50.0}, wt_pct={"C1": 50.0, "C10": 50.0}
+    )
+    assert flash_page_logic.hoffman_overlap_codes(gas_one, oil_one) == {"C1"}
+
+
+def test_flash_page_hoffman_skipped_for_zero_overlap_composition() -> None:
+    """Gas all-C1 / oil all-C10: zero components with a positive mole
+    fraction in both streams. Before the fix, this reached
+    `hoffman_crump.check` unguarded and crashed the page with
+    `ZeroDivisionError` (its least-squares fit divides by `n`, here 0
+    points). The page's overlap precheck must catch this and degrade to a
+    warning instead."""
+    gas_stream = CompositionStream(library=KF, mol_pct={"C1": 100.0}, wt_pct={"C1": 100.0})
+    oil_stream = CompositionStream(library=KF, mol_pct={"C10": 100.0}, wt_pct={"C10": 100.0})
+    at = _run_with_active_streams(oil_stream, gas_stream)
+    assert not at.exception
+    assert any("fewer than 2" in str(w.value).lower() for w in at.warning)
+
+
+def test_flash_page_hoffman_skipped_for_single_overlap_composition() -> None:
+    """Exactly one component (C1) overlaps between the two streams -- still
+    below the 2-point minimum for `hoffman_crump.check`'s least-squares fit
+    (n=1 divides by zero computing x_bar/y_bar). Must degrade to a warning,
+    not raise."""
+    gas_stream = CompositionStream(
+        library=KF, mol_pct={"C1": 50.0, "C2": 50.0}, wt_pct={"C1": 50.0, "C2": 50.0}
+    )
+    oil_stream = CompositionStream(
+        library=KF, mol_pct={"C1": 50.0, "C10": 50.0}, wt_pct={"C1": 50.0, "C10": 50.0}
+    )
+    at = _run_with_active_streams(oil_stream, gas_stream)
+    assert not at.exception
+    assert any("fewer than 2" in str(w.value).lower() for w in at.warning)

@@ -44,6 +44,7 @@ from ui.pages.flash_page_logic import (
     FIELD_META,
     FIELD_RANGES,
     MANUAL_SAMPLE,
+    hoffman_overlap_codes,
     read_uploaded_bytes,
     seed_composition_df,
     streams_from_composition_df,
@@ -161,22 +162,52 @@ else:
                 st.markdown("**Composition QC**")
                 qc_panel(qc_results)
 
-                hoffman = hoffman_crump.check(
-                    gas_stream, oil_stream,
-                    p_psia=u.mbar_to_psia(volumetrics.gas_abs_pressure_mbar),
-                    t_f=u.c_to_f(volumetrics.gas_temp_c),
-                )
-                qc_results.append(hoffman.qc)
                 st.markdown("**Hoffmann-Crump K-value Consistency**")
-                qc_panel([hoffman.qc])
-                if hoffman.points:
-                    chart_df = pd.DataFrame(
-                        {
-                            "F": [p.f_factor for p in hoffman.points],
-                            "log10(K*P)": [p.log10_kp for p in hoffman.points],
-                        }
+                # Precheck: hoffman_crump.check's least-squares fit needs >=2
+                # "qualifying" components (positive mole fraction in BOTH
+                # streams) -- with fewer, its internal fit divides by n (0
+                # or 1 points) or by a degenerate ss_xx of 0, raising
+                # ZeroDivisionError rather than InputValidationError. A
+                # manual-entry composition with little/no overlap between
+                # the two streams (e.g. gas all C1, oil all C10) reaches
+                # this for real, not just in theory -- checked up front so
+                # it degrades to a warning instead of crashing the page.
+                if len(hoffman_overlap_codes(gas_stream, oil_stream)) < 2:
+                    st.warning(
+                        "Hoffmann-Crump QC skipped: fewer than 2 components "
+                        "present in both streams."
                     )
-                    st.scatter_chart(chart_df, x="F", y="log10(K*P)")
+                else:
+                    try:
+                        hoffman = hoffman_crump.check(
+                            gas_stream, oil_stream,
+                            p_psia=u.mbar_to_psia(volumetrics.gas_abs_pressure_mbar),
+                            t_f=u.c_to_f(volumetrics.gas_temp_c),
+                        )
+                    except InputValidationError as exc:
+                        st.warning(
+                            "Hoffmann-Crump QC skipped: " + "; ".join(exc.errors)
+                        )
+                    except ZeroDivisionError:
+                        # Backstop for the precheck above: degenerate fits
+                        # the overlap-count check doesn't catch (e.g. all
+                        # qualifying components sharing the same F-factor,
+                        # zeroing ss_xx in the least-squares fit).
+                        st.warning(
+                            "Hoffmann-Crump QC skipped: insufficient "
+                            "overlapping components for a stable fit."
+                        )
+                    else:
+                        qc_results.append(hoffman.qc)
+                        qc_panel([hoffman.qc])
+                        if hoffman.points:
+                            chart_df = pd.DataFrame(
+                                {
+                                    "F": [p.f_factor for p in hoffman.points],
+                                    "log10(K*P)": [p.log10_kp for p in hoffman.points],
+                                }
+                            )
+                            st.scatter_chart(chart_df, x="F", y="log10(K*P)")
 
         t_gas_k = volumetrics.gas_temp_c + 273.15
         steps = [
