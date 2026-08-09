@@ -24,17 +24,17 @@ literature, and this module implements the second one directly:
    with (C1, C2, C3) = (27.62, 0.914, 11.172) for API <= 30, and
    (56.18, 0.842, 10.393) for API > 30.
 
-Coefficient identity (why both forms agree): C2 = 1/C2', C3 = C3' x C2 x
-log10(e), and C1 = [(1/C1')^(1/C2')]^C2' ... equivalently C1^C2 =
-(1/C1')^(1/C2'). Concretely, for API <= 30: 1/1.0937 = 0.914328 (rounds
-to the tabulated C2 = 0.914); 25.7240/1.0937 x log10(e) = 10.2147, and
-10.2147 x 0.914328 = 11.1718 (rounds to the tabulated C3 = 11.172); and
-(1/0.0362)^0.914328 = 27.6243 (rounds to the tabulated C1 = 27.62). The
-API > 30 branch matches the same way: 1/1.1870 = 0.842, 23.9310 x 0.842
-x log10(e) = 10.393 rounds to 10.393, and (1/0.0178)^0.842 rounds to
-56.18. Because the two published tables are independently rounded to 3-4
-significant figures, the two forms agree to within ~0.5% rather than
-being bit-identical -- see `test_round_trip_against_original_rs_form` in
+Coefficient identity (why both forms agree): C1 = 1/C1', C2 = 1/C2', and
+C3 = C3' x log10(e). Concretely, for API <= 30: 1/0.0362 = 27.6243
+(rounds to the tabulated C1 = 27.62); 1/1.0937 = 0.914328 (rounds to the
+tabulated C2 = 0.914); 25.7240 x log10(e) = 11.1718 (rounds to the
+tabulated C3 = 11.172). The API > 30 branch matches the same way:
+1/0.0178 = 56.1798 (rounds to the tabulated C1 = 56.18); 1/1.1870 =
+0.84246 (rounds to the tabulated C2 = 0.842); 23.9310 x log10(e) =
+10.3931 (rounds to the tabulated C3 = 10.393). Because the two published
+tables are independently rounded to 3-4 significant figures, the two
+forms agree to within ~0.5% rather than being bit-identical -- see
+`test_round_trip_against_original_rs_form` in
 tests/unit/correlations/test_vasquez_beggs.py, which cross-checks
 `bubble_point()` (form 2) against form 1 directly (not against itself).
 

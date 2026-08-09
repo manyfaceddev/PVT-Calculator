@@ -38,11 +38,11 @@ def test_round_trip_against_original_rs_form():
     rs_back_low = 0.0362 * 0.65 * pb_low ** 1.0937 * math.exp(25.724 * 30 / 660)
     assert rs_back_low == pytest.approx(1000.0, rel=5e-3)
 
-    # API > 30 branch: (C1', C2', C3') = (0.0178, 1.1870, 23.9310). Rs=300 (rather than
-    # 1000) keeps the round-trip inside the tabulated coefficients' ~0.5% rounding
-    # budget for this branch -- the >30 table rounds slightly less tightly than the
-    # <=30 table (see module docstring), so the two branches' round-trip error is not
-    # identical; both stay under the same rel=5e-3 anchor tolerance.
-    pb_high = bubble_point(300.0, 0.65, 40.0, 200.0)
+    # API > 30 branch: (C1', C2', C3') = (0.0178, 1.1870, 23.9310).
+    pb_high = bubble_point(1000.0, 0.65, 40.0, 200.0)
     rs_back_high = 0.0178 * 0.65 * pb_high ** 1.1870 * math.exp(23.931 * 40 / 660)
-    assert rs_back_high == pytest.approx(300.0, rel=5e-3)
+    # rel=6e-3 (not 5e-3): the published table rounds C2 to 0.842 (exact 0.84246), a
+    # systematic -0.54% round-trip bias at high Rs; verified to collapse to ~1e-16 with
+    # exact-inverse coefficients. High-Rs API>30 fluids are a real regime - keep it
+    # covered rather than shopping the input.
+    assert rs_back_high == pytest.approx(1000.0, rel=6e-3)
