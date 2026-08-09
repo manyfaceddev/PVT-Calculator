@@ -3,30 +3,8 @@ pvt/recombination/validate.py — Input validation for recombination calculation
 Returns lists of human-readable error strings; empty list means inputs are valid.
 """
 
-from pvt.recombination.models import RecombinationInputs, SeparatorStage
+from pvt.recombination.models import SeparatorStage
 from pvt.constants import Units
-
-
-def validate(inp: RecombinationInputs) -> list[str]:
-    """Validate single-stage recombination inputs."""
-    errors: list[str] = []
-    if inp.V_cell <= 0:
-        errors.append("Cell volume must be > 0 cc.")
-    if inp.R_sep <= 0:
-        errors.append("GOR must be > 0.")
-    if inp.P_sep <= 0:
-        errors.append("Separator pressure must be > 0.")
-    if inp.Z_sep <= 0 or inp.Z_sep > 2.0:
-        errors.append("Z-factor must be in range (0, 2.0].")
-    if inp.Bo_sep <= 0 or inp.Bo_sep > 5.0:
-        errors.append("Bo_sep must be in range (0, 5.0].")
-    if not (0.0 < inp.oil_fraction < 1.0):
-        errors.append("Oil fraction must be between 0 and 1 (exclusive).")
-    if inp.units == "field" and inp.T_sep < -100:
-        errors.append("Separator temperature (°F) looks unrealistically low.")
-    if inp.units == "si" and inp.T_sep < -73:
-        errors.append("Separator temperature (°C) looks unrealistically low.")
-    return errors
 
 
 def validate_multistage(

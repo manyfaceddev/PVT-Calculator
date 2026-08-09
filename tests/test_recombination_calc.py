@@ -405,16 +405,57 @@ class TestOilCompressibility:
     def test_compressibility_formula_correctness(self):
         """Verify the compressibility formula matches expected physics."""
         import math
-        
+
         stage = SeparatorStage(R=583, P=150, T=120, Z=0.921, label="Separator")
         c_o = 100e-6  # 1/psia
-        
+
         res = calculate_multistage(
             [stage], V_live=2000.0, SF=0.95, P_recomb=5000.0, T_recomb=70.0, Z_recomb=1.00,
             units="field", p_charge=2000.0, c_o=c_o
         )
-        
+
         # Manual calculation: V_charge = V_sep * exp(c_o * (P_recomb - P_charge))
         expected = res.V_oil_sep * math.exp(c_o * (5000.0 - 2000.0))
-        
+
         assert res.V_oil_charge == pytest.approx(expected, rel=1e-10)
+
+
+# ---------------------------------------------------------------------------
+# 10. Case 2 — stock-tank oil charged (oil_source="stock_tank")
+#
+# Characterization tests: this branch had zero coverage before this test
+# class. Attribute names below are the real MultiStageResults / StageResult
+# fields (see pvt/recombination/models.py) — the calculate_multistage kwargs
+# match the dataclass field casing exactly (V_live, SF, FF, P_recomb,
+# T_recomb, Z_recomb), not the lowercase forms used elsewhere.
+# ---------------------------------------------------------------------------
+
+class TestCase2StockTank:
+    """Case 2: dead STO charged; stage gas + FF gas all from the separator-gas cylinder."""
+
+    def _run(self, **overrides):
+        kwargs = dict(
+            V_live=1000.0, SF=1.0, FF=100.0, oil_source="stock_tank",
+            P_recomb=5000.0, T_recomb=75.0, Z_recomb=0.85,
+            stages=[SeparatorStage(R=339.0, P=248.0, T=118.0, Z=0.99)],
+            units="field", p_charge=5000.0, c_o=0.0,
+        )
+        kwargs.update(overrides)
+        return calculate_multistage(**kwargs)
+
+    def test_volume_balance_exact(self):
+        res = self._run()
+        total_gas = sum(sr.V_gas_recomb_cc for sr in res.stage_results) + res.V_FF_gas_recomb_cc
+        assert res.V_oil_sep + total_gas == pytest.approx(1000.0, rel=1e-12)
+
+    def test_ff_gas_included_in_cylinder_total(self):
+        with_ff = self._run(FF=100.0)
+        without_ff = self._run(FF=0.0)
+        assert with_ff.total_V_gas_std_cc > without_ff.total_V_gas_std_cc
+
+    def test_sf_ignored_in_case2(self):
+        assert self._run(SF=0.8).V_oil_STO == pytest.approx(self._run(SF=1.0).V_oil_STO)
+
+    def test_stage_pct_excludes_ff(self):
+        res = self._run(FF=100.0)
+        assert sum(sr.pct_of_total for sr in res.stage_results) < 100.0

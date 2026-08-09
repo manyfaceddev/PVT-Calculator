@@ -44,67 +44,8 @@ from pvt.constants import (
 )
 import math
 from pvt.recombination.models import (
-    RecombinationInputs, RecombinationResults,
     SeparatorStage, StageResult, MultiStageResults,
 )
-
-
-# ===========================================================================
-# Single-stage  (simple / legacy)
-# ===========================================================================
-
-def calculate(inp: RecombinationInputs) -> RecombinationResults:
-    """
-    Single-stage separator recombination.
-
-    Uses cell volume + oil fraction to determine charge volumes.
-    For the preferred workflow (live-fluid-volume driven), use
-    calculate_multistage with n=1 stage instead.
-    """
-    if inp.units == "field":
-        P_sep_psia = inp.P_sep
-        T_sep_R    = inp.T_sep + 459.67
-        T_sep_F    = inp.T_sep
-        R_cc       = inp.R_sep * SCF_STB_TO_CC_CC
-    else:
-        P_sep_psia = inp.P_sep * BARA_TO_PSIA
-        T_sep_F    = inp.T_sep * 9.0 / 5.0 + 32.0
-        T_sep_R    = T_sep_F + 459.67
-        R_cc       = inp.R_sep   # sm³/sm³ == cc/cc ratio
-
-    V_oil_sep    = inp.oil_fraction * inp.V_cell
-    V_oil_STO    = V_oil_sep / inp.Bo_sep
-    V_gas_std_cc = R_cc * V_oil_STO
-
-    if inp.units == "field":
-        V_gas_std_unit = V_gas_std_cc / SCF_TO_CC
-    else:
-        V_gas_std_unit = V_gas_std_cc * CC_TO_SM3
-
-    V_gas_sep = (
-        V_gas_std_cc
-        * (P_STD_PSIA / P_sep_psia)
-        * (T_sep_R / T_STD_R)
-        * inp.Z_sep
-    )
-
-    R_cc_check = V_gas_std_cc / V_oil_STO if V_oil_STO > 0 else 0.0
-    GOR_check  = R_cc_check / SCF_STB_TO_CC_CC if inp.units == "field" else R_cc_check
-
-    return RecombinationResults(
-        V_oil_sep=V_oil_sep,
-        V_oil_STO=V_oil_STO,
-        V_gas_std_cc=V_gas_std_cc,
-        V_gas_std_unit=V_gas_std_unit,
-        V_gas_sep=V_gas_sep,
-        GOR_check=GOR_check,
-        GOR_input=inp.R_sep,
-        R_cc=R_cc,
-        P_sep_psia=P_sep_psia,
-        T_sep_R=T_sep_R,
-        T_sep_F=T_sep_F,
-        units=inp.units,
-    )
 
 
 # ===========================================================================

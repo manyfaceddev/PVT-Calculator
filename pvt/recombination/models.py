@@ -108,37 +108,3 @@ class MultiStageResults:
     V_FF_gas_recomb_cc:    float   # flash gas volume @ recomb P&T (cc)
     # ── Metadata ─────────────────────────────────────────────────────────────
     units:                 Units
-
-
-# ===========================================================================
-# Single-stage models  (legacy / simple API)
-# ===========================================================================
-
-@dataclass
-class RecombinationInputs:
-    """All inputs for a single-stage separator recombination."""
-    V_cell:       float           # cc — recombination cell volume
-    R_sep:        float           # scf/STB (field) or sm³/sm³ (SI) — separator GOR
-    P_sep:        float           # psia (field) or bara (SI)
-    T_sep:        float           # °F (field) or °C (SI)
-    Z_sep:        float           # Z-factor at separator conditions
-    Bo_sep:       float = 1.0     # oil FVF at separator conditions
-    oil_fraction: float = 0.70    # fraction of cell volume to fill with separator oil
-    units:        Units = "field"
-
-
-@dataclass
-class RecombinationResults:
-    """All outputs from a single-stage separator recombination."""
-    V_oil_sep:       float   # cc — separator oil to charge
-    V_oil_STO:       float   # cc — equivalent stock-tank oil volume
-    V_gas_std_cc:    float   # cc  @ standard conditions
-    V_gas_std_unit:  float   # scf (field) or sm³ (SI) @ standard conditions
-    V_gas_sep:       float   # cc  @ separator conditions
-    GOR_check:       float   # back-calculated GOR (input units)
-    GOR_input:       float   # original input GOR (for comparison)
-    R_cc:            float   # cc/cc — GOR in volumetric-ratio form
-    P_sep_psia:      float   # separator pressure in psia (internal)
-    T_sep_R:         float   # separator temperature in Rankine (internal)
-    T_sep_F:         float   # separator temperature in °F (display)
-    units:           Units
