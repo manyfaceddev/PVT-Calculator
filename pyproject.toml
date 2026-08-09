@@ -43,3 +43,9 @@ python_version = "3.12"
 warn_unused_ignores = true
 disallow_untyped_defs = true
 packages = ["pvt"]
+
+[[tool.mypy.overrides]]
+# openpyxl ships no py.typed marker / stubs; the excel_import/excel_export
+# boundary modules (Phase 2 Tasks 7-9) all depend on it.
+module = "openpyxl.*"
+ignore_missing_imports = true
