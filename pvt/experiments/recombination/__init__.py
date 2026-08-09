@@ -1,5 +1,6 @@
 """pvt/experiments/recombination — Separator recombination module."""
 
+from . import molar
 from pvt.experiments.recombination.models import (
     SeparatorStage,
     StageResult,
@@ -14,4 +15,5 @@ __all__ = [
     "MultiStageResults",
     "calculate_multistage",
     "validate_multistage",
+    "molar",
 ]
