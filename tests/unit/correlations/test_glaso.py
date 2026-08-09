@@ -28,6 +28,7 @@ def test_corrected_magnitude():
 def test_trends():
     assert bubble_point(1200, 0.65, 30, 200) > bubble_point(800, 0.65, 30, 200)
     assert bubble_point(1000, 0.65, 45, 200) < bubble_point(1000, 0.65, 30, 200)
+    assert bubble_point(1000, 0.85, 30, 200) < bubble_point(1000, 0.65, 30, 200)
 
 
 # --- Input validation guards -------------------------------------------------
@@ -58,4 +59,3 @@ def test_collects_all_violations():
     with pytest.raises(InputValidationError) as exc_info:
         pb_star(0.0, 0.0, 0.0, 0.0)
     assert len(exc_info.value.errors) == 4
-    assert bubble_point(1000, 0.85, 30, 200) < bubble_point(1000, 0.65, 30, 200)
