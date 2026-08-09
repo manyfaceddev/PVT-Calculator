@@ -2,7 +2,7 @@
 pvt/core/units.py — Unit conversion functions.
 
 All conversions are one-liners built strictly on pvt.core.constants.
-No numeric literals except pure math (e.g., 5/9, 32, 459.67).
+No numeric literals except pure math (e.g., 5/9, 32, 141.5/131.5).
 """
 
 from pvt.core import constants
@@ -35,12 +35,12 @@ def c_to_f(temp_c: float) -> float:
 
 def c_to_k(temp_c: float) -> float:
     """Celsius to Kelvin."""
-    return temp_c + 273.15
+    return temp_c + constants.KELVIN_OFFSET
 
 
 def k_to_c(temp_k: float) -> float:
     """Kelvin to Celsius."""
-    return temp_k - 273.15
+    return temp_k - constants.KELVIN_OFFSET
 
 
 def f_to_k(temp_f: float) -> float:

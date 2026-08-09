@@ -34,6 +34,9 @@ T_STD_K: Final[float] = 288.7056
 RANKINE_OFFSET: Final[float] = 459.67
 """Conversion offset from Fahrenheit to Rankine (°F + 459.67 = °R)."""
 
+KELVIN_OFFSET: Final[float] = 273.15
+"""Conversion offset from Celsius to Kelvin (°C + 273.15 = K), exact by definition."""
+
 # ===========================================================================
 # Volume Conversions (at standard conditions)
 # ===========================================================================

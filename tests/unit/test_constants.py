@@ -25,6 +25,9 @@ class TestLabStandardConditions:
     def test_rankine_offset(self):
         assert c.RANKINE_OFFSET == 459.67
 
+    def test_kelvin_offset(self):
+        assert c.KELVIN_OFFSET == 273.15
+
 
 class TestVolumeConversions:
     """Volume conversion factors."""
