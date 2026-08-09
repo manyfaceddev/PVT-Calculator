@@ -289,6 +289,28 @@ script fails loudly if either is missing or a chapter file is absent.
 
 ---
 
+## Offline installation (locked-down PC)
+
+For a target machine with no internet access, `scripts/make_offline_bundle.sh`
+builds a self-contained folder (streamlit, openpyxl, and their full
+transitive dependency closure as downloaded wheels, plus the source tree)
+that installs entirely from local files with `pip install --no-index`:
+
+```bash
+# Run on a machine WITH internet access:
+bash scripts/make_offline_bundle.sh win_amd64   # or omit the tag for this machine
+
+# Copy dist/pvt-offline-<platform>/ to the target PC, then follow its
+# INSTALL.txt: python -m venv, activate, pip install --no-index
+# --find-links wheels ..., streamlit run app.py (or python cli.py ...).
+```
+
+See [`docs/manual/02-installation.md`, Section 2.7](docs/manual/02-installation.md#27-offline-installation-locked-down-pc)
+for the full walkthrough, including the CLI-only path (needs only `pvt` +
+`openpyxl`, no Streamlit at all).
+
+---
+
 *Standard conditions: lab basis 14.73 psia / 60°F (see `pvt/core/constants.py`
 for the full canonized set and source citations). Always verify calculator
 output with a qualified reservoir engineer before laboratory use.*

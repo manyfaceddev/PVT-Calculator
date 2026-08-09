@@ -37,7 +37,14 @@ from pvt.experiments.recombination.validate import validate_multistage
 from pvt.qc.checks import composition_normalization
 from pvt.qc.engine import QCResult
 from pvt.reporting.tables import recombination_tables
-from ui.common import calc_steps, metric_card, page_header, qc_panel, report_download
+from ui.common import (
+    calc_steps,
+    figure_expander,
+    metric_card,
+    page_header,
+    qc_panel,
+    report_download,
+)
 from ui.pages.recombination_page_logic import (
     MANUAL_SAMPLE,
     read_uploaded_liveoil_bytes,
@@ -60,6 +67,15 @@ with tab_volumetric:
     st.caption(
         "Carlsen & Whitson (2020) multi-stage separator recombination — "
         "single separator stage, field units."
+    )
+    figure_expander(
+        "How the bench test maps to these fields",
+        "docs/manual/figures/recombination-scheme.png",
+        "Separator oil and separator gas (or stock-tank oil and gas, for Case 2) are metered "
+        "back together in the proportion this form computes, rebuilding a live sample that "
+        "reproduces the reservoir fluid's gas-oil ratio. Oil source picks which oil you're "
+        "recombining, and the Separator Stage/Oil Charging fields describe the metered gas "
+        "and the pressure the recombined oil is charged into the cylinder at.",
     )
     with st.form("recomb.vol_form"):
         oil_source = st.radio(
@@ -230,6 +246,15 @@ with tab_molar:
     st.caption(
         "Molar gas/oil recombination split, wellstream composition, and cylinder "
         "loading plan — ADRIC LiveOil v4.1 methodology."
+    )
+    figure_expander(
+        "How your data flows",
+        "docs/manual/figures/app-workflow.png",
+        "Whichever mode you use — uploading a filled LiveOil workbook or typing values into "
+        "the manual form — feeds the same molar-split calculation, and whichever one you "
+        "last submitted successfully becomes the result shown below. Submitting a bad form, "
+        "or a workbook the app can't read, clears any previous result rather than leaving a "
+        "stale answer on screen.",
     )
     mtab_upload, mtab_manual = st.tabs(["Upload LiveOil Workbook", "Manual Entry"])
 

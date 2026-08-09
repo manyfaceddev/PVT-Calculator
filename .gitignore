@@ -9,3 +9,4 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 pvt.egg-info/
+dist/

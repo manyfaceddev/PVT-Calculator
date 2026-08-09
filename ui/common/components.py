@@ -14,6 +14,7 @@ in one place.
 from __future__ import annotations
 
 from io import BytesIO
+from pathlib import Path
 
 import streamlit as st
 
@@ -23,11 +24,16 @@ from pvt.reporting.excel_export import write_report
 from pvt.reporting.tables import ReportTable
 from ui.theme import TOKENS
 
-_QC_COLORS: dict[str, str] = {
-    "PASS": TOKENS["qc_green"],
-    "REVIEW": TOKENS["qc_amber"],
-    "FAIL": TOKENS["qc_red"],
+_QC_DOT_CLASSES: dict[str, str] = {
+    "PASS": "pvt-qc-dot-pass",
+    "REVIEW": "pvt-qc-dot-review",
+    "FAIL": "pvt-qc-dot-fail",
 }
+
+# ui/common/components.py -> ui/common -> ui -> repo root. Anchored on this
+# file's own path (not the current working directory) so figure_expander
+# resolves correctly no matter where `streamlit run` is launched from.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -53,12 +59,17 @@ def metric_card(label: str, value: str, unit: str = "") -> None:
 
 
 def qc_pill(result: QCResult) -> None:
-    """Render one `QCResult` as a coloured-dot pill: check id + message."""
-    color = _QC_COLORS[result.severity.value]
+    """Render one `QCResult` as a coloured-dot pill: check id + message.
+
+    The dot's colour comes from the `.pvt-qc-dot-*` classes `ui.theme.
+    inject()` defines (one per `Severity`, each set from `TOKENS["qc_*"]`)
+    rather than an inline `background:` style, so QC severity colour is
+    defined in exactly one place (the stylesheet), not re-derived per call.
+    """
+    dot_class = _QC_DOT_CLASSES[result.severity.value]
     st.markdown(
         f'<div style="display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0;">'
-        f'<span style="height:10px;width:10px;min-width:10px;border-radius:50%;'
-        f'background:{color};display:inline-block;"></span>'
+        f'<span class="pvt-qc-dot {dot_class}"></span>'
         f'<span style="font-weight:600;">{result.check_id}</span>'
         f'<span style="color:#6a7f96;font-size:0.85rem;">{result.message}</span>'
         f"</div>",
@@ -70,6 +81,34 @@ def qc_panel(results: list[QCResult]) -> None:
     """Render a stack of `qc_pill`s, one per `QCResult` in `results`."""
     for result in results:
         qc_pill(result)
+
+
+def figure_expander(title: str, figure_relpath: str, explanation: str) -> None:
+    """Render a collapsed `st.expander` holding one manual figure plus a
+    short plain-language explanation of how it maps to the form above/
+    beside it.
+
+    Args:
+        title: Expander title, e.g. "How the bench test maps to these
+            fields".
+        figure_relpath: Path to the figure, relative to the repo root (e.g.
+            "docs/manual/figures/flash-apparatus.png") -- resolved against
+            `_REPO_ROOT`, not the current working directory, so this is
+            robust to where `streamlit run` is launched from.
+        explanation: Plain-language text shown under the figure.
+
+    A missing/renamed figure degrades to a caption instead of crashing the
+    page: `st.image` raises on a nonexistent path, so the file's existence
+    is checked first (`Path.exists()`), same guard rationale as every other
+    "degrade, don't crash" boundary in `ui/pages/*_logic.py`.
+    """
+    with st.expander(title, expanded=False):
+        figure_path = _REPO_ROOT / figure_relpath
+        if figure_path.exists():
+            st.image(str(figure_path), width="stretch")
+        else:
+            st.caption(f"Figure not available: {figure_relpath}")
+        st.markdown(explanation)
 
 
 def calc_steps(steps: list[tuple[str, str]]) -> None:

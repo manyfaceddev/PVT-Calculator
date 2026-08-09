@@ -31,12 +31,15 @@ def test_shell_boots_without_exception() -> None:
 
 
 def test_shell_renders_default_page_header() -> None:
-    """`app.py` drives `st.navigation`; the default (first) page's
-    `page_header` banner shows up in the rendered markdown tree."""
+    """`app.py` drives `st.navigation`; the default (first) page is now the
+    Dashboard (`ui/pages/home_page.py`) -- its `.pvt-banner` welcome banner
+    shows up in the rendered markdown tree. (Standalone-boot and richer
+    content checks for the Dashboard itself live in
+    `tests/ui/test_home_page.py`.)"""
     at = AppTest.from_file("app.py").run()
     assert not at.exception
     rendered = "\n".join(m.value for m in at.markdown)
-    assert "Flash Separation" in rendered
+    assert "ADRIC PVT Platform" in rendered
 
 
 def test_flash_page_boots_standalone() -> None:

@@ -7,6 +7,7 @@ Re-exports `ui.common.components` so pages can do
 
 from ui.common.components import (
     calc_steps,
+    figure_expander,
     metric_card,
     page_header,
     qc_panel,
@@ -16,6 +17,7 @@ from ui.common.components import (
 
 __all__ = [
     "calc_steps",
+    "figure_expander",
     "metric_card",
     "page_header",
     "qc_panel",

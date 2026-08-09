@@ -240,3 +240,92 @@ python3 -c "import pvt, ui, cli"           # import-smoke, matches the CI step
 | `cli.py` | Command-line interface (`recombine`, `flash` subcommands). |
 | `pyproject.toml` | Packaging, `pytest`/coverage, `ruff`, and `mypy` configuration. |
 | `.github/workflows/ci.yml` | CI pipeline: `ruff check`, `mypy`, `pytest`, import-smoke. |
+
+## 2.7 Offline Installation (Locked-Down PC)
+
+Some target machines have no internet access at all (a company PC on a
+locked-down network) and cannot assume Python has Streamlit already
+installed, or that PyPI is even reachable. `scripts/make_offline_bundle.sh`
+builds a self-contained folder that installs the whole platform, including
+the `streamlit` and `openpyxl` packages and their full transitive
+dependency closure, using `pip install --no-index` (no network access
+required at install time).
+
+Run the script on any machine that does have internet access. It downloads
+wheels from PyPI, so it is not itself offline; only the resulting bundle
+is:
+
+```bash
+bash scripts/make_offline_bundle.sh                        # bundle for this machine
+bash scripts/make_offline_bundle.sh win_amd64               # bundle targeting a Windows PC
+bash scripts/make_offline_bundle.sh manylinux2014_x86_64 --dev   # + pytest/ruff/mypy
+```
+
+The optional first argument is a pip wheel platform tag for the *target*
+PC (`win_amd64`, `manylinux2014_x86_64`, `macosx_11_0_arm64`, and so on);
+omit it to build for the machine the script is running on. `--dev`
+additionally downloads the `[dev]` extra (`pytest`, `pytest-cov`, `ruff`,
+`mypy`); it is left out by default since a locked-down PC normally only
+needs to run the application, not the test/lint toolchain. The script
+fails loudly (missing tooling, a failed download, an empty result) and
+prints the bundle's final path and size on success. It writes
+`dist/pvt-offline-<platform>/`:
+
+| Path | Contents |
+|---|---|
+| `wheels/` | Every runtime dependency (`streamlit`, `openpyxl`, their full transitive closure, plus `setuptools`/`wheel` needed to build the project from source), as downloaded `.whl` files. |
+| `src/` | The full source tree at `git archive HEAD` (the repository at the built commit, with no `.git` directory or other build/test cruft). |
+| `INSTALL.txt` | Exact install steps for the target PC, both Windows and POSIX. |
+
+Copy that folder to the target PC (USB stick, internal network share,
+whatever the site allows) and follow `INSTALL.txt`:
+
+```bash
+python -m venv .venv
+
+# Windows (cmd.exe / PowerShell)
+.venv\Scripts\activate
+# macOS / Linux
+source .venv/bin/activate
+
+pip install --no-index --find-links wheels setuptools wheel
+cd src
+pip install --no-index --no-build-isolation --find-links ../wheels -e .
+streamlit run app.py
+```
+
+or the CLI, from the same activated environment and `src/` directory:
+
+```bash
+python cli.py recombine --gor 850 --p_sep 815 --t_sep 145 --z_sep 0.855 \
+              --v_live 300 --p_recomb 5014.7 --t_recomb 200 --z_recomb 0.820
+```
+
+Every install command above passes `--no-index`, so pip refuses to
+contact PyPI at all: a dependency missing from `wheels/` fails loudly with
+a "no matching distribution found" error instead of silently depending on
+the target PC happening to have internet after all.
+
+### Running without Streamlit at all
+
+The command-line interface does not need Streamlit. Tracing `cli.py`'s
+actual import closure (`cli.py` itself plus everything reachable through
+`pvt.core`, `pvt.correlations`, `pvt.experiments`, `pvt.qc`,
+`pvt.reporting`, and, for the `flash` subcommand, `pvt.io.excel_import`)
+shows exactly one third-party package: `openpyxl`. Everything else is the
+Python standard library (`math`, `dataclasses`, `enum`, `argparse`, and so
+on). So `python cli.py recombine ...` and
+`python cli.py flash --workbook ...` both run on a machine with only the
+`pvt` package and `openpyxl` installed; no Streamlit anywhere.
+
+The GUI (`streamlit run app.py`) does need the `streamlit` package, but
+that only means the ordinary Python library bundled in `wheels/` above,
+installed into a per-user virtual environment like any other pip package.
+It needs no admin rights, and it is not a system service or background
+daemon: `streamlit run` starts a local web server for the duration of
+your session and nothing more.
+
+A zero-install, browser-only build (compiling the app to WebAssembly with
+a tool such as stlite, so a target PC would not need a Python interpreter
+at all) is a roadmap evaluation item, not something this platform
+supports today.

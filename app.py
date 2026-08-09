@@ -21,8 +21,14 @@ from ui import theme  # noqa: E402  (must come after set_page_config)
 theme.inject()
 
 pages = [
-    st.Page("ui/pages/flash_page.py", title="Flash Separation (SSF)"),
-    st.Page("ui/pages/recombination_page.py", title="Recombination / Live Oil"),
+    st.Page("ui/pages/home_page.py", title="Dashboard", icon=":material/dashboard:"),
+    st.Page(
+        "ui/pages/flash_page.py", title="Flash Separation (SSF)", icon=":material/science:"
+    ),
+    st.Page(
+        "ui/pages/recombination_page.py", title="Recombination / Live Oil",
+        icon=":material/merge_type:",
+    ),
 ]
 nav = st.navigation(pages)
 nav.run()

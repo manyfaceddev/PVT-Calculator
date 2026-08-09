@@ -42,7 +42,14 @@ from pvt.experiments.flash.validate import validate as validate_flash
 from pvt.qc.checks import composition_normalization, hoffman_crump, mw_consistency
 from pvt.qc.engine import QCResult
 from pvt.reporting.tables import flash_tables
-from ui.common import calc_steps, metric_card, page_header, qc_panel, report_download
+from ui.common import (
+    calc_steps,
+    figure_expander,
+    metric_card,
+    page_header,
+    qc_panel,
+    report_download,
+)
 from ui.pages.flash_page_logic import (
     FIELD_META,
     FIELD_RANGES,
@@ -103,6 +110,15 @@ with tab_upload:
 
 with tab_manual:
     st.caption("Mirrors the ADRIC Flash v6.1 Volumetrics_Master sheet.")
+    figure_expander(
+        "How the bench test maps to these fields",
+        "docs/manual/figures/flash-apparatus.png",
+        "The three groups of readings above mirror the three bench instruments — the "
+        "displacement pump, the stock-tank flask and balance, and the gasometer — in the "
+        "order they appear on the ADRIC Flash v6.1 Volumetrics_Master sheet. Each value you "
+        "type in is exactly what that instrument reads at the bench, before and after the "
+        "flash.",
+    )
     with st.form("flash.manual_form"):
         values: dict[str, float] = {}
         for i in range(0, len(FIELD_META), 3):
