@@ -44,6 +44,13 @@ class TestVolumeConversions:
         # 1 lbmol ideal gas @ STP ≈ 379.482 scf
         assert c.SCF_PER_LBMOL == 379.482
 
+    def test_scf_per_lbmol_matches_atm_basis_molar_volume(self):
+        # SCF_PER_LBMOL is the molar volume at the 14.696 psia atmosphere
+        # basis (R * T_STD_R / P_ATM_PSIA), NOT the 14.73 psia lab basis
+        # (which would give ~378.61 scf/lbmol instead).
+        molar_volume_atm_basis = c.R_PSIA_FT3_LBMOL_R * c.T_STD_R / c.P_ATM_PSIA
+        assert abs(c.SCF_PER_LBMOL - molar_volume_atm_basis) < 0.01
+
     def test_ft3_per_bbl(self):
         # 1 bbl = 5.61458 ft³
         assert c.FT3_PER_BBL == 5.61458

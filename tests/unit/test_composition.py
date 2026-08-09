@@ -67,6 +67,51 @@ def test_mw_from_mol_zero_sum_raises():
 
 
 # ---------------------------------------------------------------------------
+# Absent-basis guards — a mol-only (or wt-only) stream has NO opposite basis
+# at all, which is a different condition from a *provided* basis that sums
+# to zero. Each operation below must raise the precise "no ...% basis
+# provided" diagnostic rather than the misleading "composition sums to zero"
+# (which raw_mol_sum()/raw_wt_sum() would silently imply, since they return
+# 0.0 for an absent basis too).
+# ---------------------------------------------------------------------------
+
+def test_normalized_wt_absent_basis_raises_no_wt_basis():
+    cs = CompositionStream(library=KF, mol_pct={"C1": 100.0})
+    with pytest.raises(InputValidationError, match="no wt% basis provided"):
+        cs.normalized_wt()
+
+def test_normalized_mol_absent_basis_raises_no_mol_basis():
+    cs = CompositionStream(library=KF, wt_pct={"C1": 100.0})
+    with pytest.raises(InputValidationError, match="no mol% basis provided"):
+        cs.normalized_mol()
+
+def test_mw_from_mol_absent_basis_raises_no_mol_basis():
+    cs = CompositionStream(library=KF, wt_pct={"C1": 100.0})
+    with pytest.raises(InputValidationError, match="no mol% basis provided"):
+        cs.mw_from_mol()
+
+def test_mw_from_wt_absent_basis_raises_no_wt_basis():
+    cs = CompositionStream(library=KF, mol_pct={"C1": 100.0})
+    with pytest.raises(InputValidationError, match="no wt% basis provided"):
+        cs.mw_from_wt()
+
+def test_mw_consistency_pct_absent_wt_basis_raises_no_wt_basis():
+    cs = CompositionStream(library=KF, mol_pct={"C1": 100.0})
+    with pytest.raises(InputValidationError, match="no wt% basis provided"):
+        cs.mw_consistency_pct()
+
+def test_liquid_density_ideal_absent_basis_raises_no_wt_basis():
+    cs = CompositionStream(library=KF, mol_pct={"C1": 100.0})
+    with pytest.raises(InputValidationError, match="no wt% basis provided"):
+        cs.liquid_density_ideal_g_cc()
+
+def test_wt_from_mol_absent_basis_raises_no_mol_basis():
+    cs = CompositionStream(library=KF, wt_pct={"C1": 100.0})
+    with pytest.raises(InputValidationError, match="no mol% basis provided"):
+        cs.wt_from_mol()
+
+
+# ---------------------------------------------------------------------------
 # mw_consistency_pct / liquid_density_ideal_g_cc — normal path
 # ---------------------------------------------------------------------------
 

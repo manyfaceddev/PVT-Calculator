@@ -31,3 +31,14 @@ def test_c36_override_is_isolated_copy():
 def test_unknown_code_raises():
     with pytest.raises(KeyError):
         KF.get("C99")
+
+
+def test_codes_mutation_does_not_persist():
+    # .codes returns an immutable tuple, not the library's internal list,
+    # so callers cannot corrupt the singleton's component order/membership.
+    codes = KF.codes
+    assert isinstance(codes, tuple)
+    with pytest.raises(TypeError):
+        codes[0] = "MUTATED"  # type: ignore[index]
+    assert KF.codes[0] == "H2"
+    assert len(KF.codes) == 52

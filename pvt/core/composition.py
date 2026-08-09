@@ -46,12 +46,44 @@ class CompositionStream:
     # -----------------------------------------------------------------
 
     def raw_mol_sum(self) -> float:
-        """Sum of the raw (un-normalized) mol% values."""
+        """Sum of the raw (un-normalized) mol% values.
+
+        Returns 0.0 both when a mol% basis is present but sums to zero, and
+        when no mol% basis was provided at all (`mol_pct` is `None`/empty) —
+        this method cannot distinguish the two. Callers that need to tell
+        "absent basis" apart from "genuinely zero-sum basis" (e.g. to raise
+        an accurate diagnostic) should check `self.mol_pct` directly instead
+        of relying on this method; see `normalized_mol`/`mw_from_mol`.
+        """
         return sum((self.mol_pct or {}).values())
 
     def raw_wt_sum(self) -> float:
-        """Sum of the raw (un-normalized) wt% values."""
+        """Sum of the raw (un-normalized) wt% values.
+
+        Returns 0.0 both when a wt% basis is present but sums to zero, and
+        when no wt% basis was provided at all (`wt_pct` is `None`/empty) —
+        this method cannot distinguish the two. Callers that need to tell
+        "absent basis" apart from "genuinely zero-sum basis" (e.g. to raise
+        an accurate diagnostic) should check `self.wt_pct` directly instead
+        of relying on this method; see `normalized_wt`/`mw_from_wt`.
+        """
         return sum((self.wt_pct or {}).values())
+
+    # -----------------------------------------------------------------
+    # Basis-presence guards
+    # -----------------------------------------------------------------
+
+    def _require_mol_basis(self) -> Mapping[str, float]:
+        """Return `mol_pct`, raising a precise diagnostic if absent."""
+        if not self.mol_pct:
+            raise InputValidationError(["no mol% basis provided"])
+        return self.mol_pct
+
+    def _require_wt_basis(self) -> Mapping[str, float]:
+        """Return `wt_pct`, raising a precise diagnostic if absent."""
+        if not self.wt_pct:
+            raise InputValidationError(["no wt% basis provided"])
+        return self.wt_pct
 
     # -----------------------------------------------------------------
     # Normalized bases (sum to 100)
@@ -59,17 +91,19 @@ class CompositionStream:
 
     def normalized_mol(self) -> dict[str, float]:
         """Mol% basis rescaled to sum to 100."""
+        mol_pct = self._require_mol_basis()
         total = self.raw_mol_sum()
         if total == 0:
             raise InputValidationError(["composition sums to zero"])
-        return {code: value * 100.0 / total for code, value in (self.mol_pct or {}).items()}
+        return {code: value * 100.0 / total for code, value in mol_pct.items()}
 
     def normalized_wt(self) -> dict[str, float]:
         """Wt% basis rescaled to sum to 100."""
+        wt_pct = self._require_wt_basis()
         total = self.raw_wt_sum()
         if total == 0:
             raise InputValidationError(["composition sums to zero"])
-        return {code: value * 100.0 / total for code, value in (self.wt_pct or {}).items()}
+        return {code: value * 100.0 / total for code, value in wt_pct.items()}
 
     # -----------------------------------------------------------------
     # Molecular weight
@@ -77,7 +111,7 @@ class CompositionStream:
 
     def mw_from_mol(self) -> float:
         """Mixture MW from mol fractions: Σzᵢ·MWᵢ / Σzᵢ."""
-        mol_pct = self.mol_pct or {}
+        mol_pct = self._require_mol_basis()
         total = self.raw_mol_sum()
         if total == 0:
             raise InputValidationError(["composition sums to zero"])

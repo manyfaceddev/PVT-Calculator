@@ -8,6 +8,17 @@ Nomenclature:
   - Field units: psia, °F, scf, STB (stock tank barrel)
   - SI units: Pa, K, sm³ (standard cubic meters)
   - Derived: ratio conversions (e.g., CC_PER_SCF: cc per scf at std conditions)
+
+Dual-basis design — this module deliberately carries TWO standard-condition
+pressures, and each constant is pinned to whichever one its source workbook
+uses:
+  - 14.73 psia  — the volumetric standard (P_STD_PSIA). Used for gasometer /
+    GOR conversions and the ADRIC lab sheets (CC_PER_STB, CC_PER_SCF, etc.).
+  - 14.696 psia — the atmosphere & gas-constant basis (P_ATM_PSIA, 1 atm).
+    Used for psig→psia conversions, R values, and SCF_PER_LBMOL.
+Do not "simplify" by collapsing these to one value — mixing the two bases
+silently shifts results by ~0.2%. When adding a new constant, match it to
+the basis its source workbook actually uses and say so in its docstring.
 """
 
 from typing import Final, Literal
@@ -48,7 +59,17 @@ CC_PER_STB: Final[float] = 158987.29
 """1 STB = 158,987.29 cc (NIST: 158987.294928 cc; lab sheets canonize to 158987.29)."""
 
 SCF_PER_LBMOL: Final[float] = 379.482
-"""1 lbmol ideal gas @ STP ≈ 379.482 scf (standard cubic feet per pound-mole)."""
+"""1 lbmol ideal gas ≈ 379.482 scf (standard cubic feet per pound-mole).
+
+This is the molar volume at the 14.696 psia / 60°F (P_ATM_PSIA / T_STD_R)
+basis: R_PSIA_FT3_LBMOL_R × T_STD_R / P_ATM_PSIA = 10.7316 × 519.67 / 14.696
+≈ 379.484, rounded to 379.482 per source convention.
+
+Warning: computing this via R_PSIA_FT3_LBMOL_R × T_STD_R / P_STD_PSIA (the
+14.73 psia lab/volumetric basis) instead gives ≈378.61 scf/lbmol — a
+different, also-valid number. The two bases are NOT interchangeable; pick
+the constant that matches whichever basis the source workbook you are
+matching uses (see the module-header note above)."""
 
 FT3_PER_BBL: Final[float] = 5.61458
 """1 bbl = 5.61458 ft³ (barrel to cubic feet)."""

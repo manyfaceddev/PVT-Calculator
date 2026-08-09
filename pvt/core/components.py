@@ -34,6 +34,9 @@ class Component:
 
 # Data source: ADRIC_Flash_Separation_Calc_v6.1.xlsx, Component_Properties sheet
 # 52 entries: code, name, mw, density (g/cc), Tb (°R), Pc (psia), Tc (°R)
+# SCN rows (C7...C36+) use the workbook's rounded n-alkane MW variant (e.g.
+# C7 100.204, C11 156.0) rather than Katz-Firoozabadi's generalized-fraction
+# MWs — the workbook is the source of record for this table per D-001.
 _KF_ROWS: list[tuple[str, str, float, float, float, float, float]] = [
     ("H2", "Hydrogen", 2.016, 0.0711, 36.7, 188.0, 59.4),
     ("H2S", "Hydrogen sulfide", 34.0809, 0.8006, 383.1, 1300.0, 672.4),
@@ -100,7 +103,7 @@ class ComponentLibrary:
             components: Dict mapping code to Component.
         """
         self._components = components
-        self._codes = list(components.keys())
+        self._codes = tuple(components.keys())
 
     @classmethod
     def from_rows(cls, rows: list[tuple[str, str, float, float, float, float, float]]) -> "ComponentLibrary":
@@ -141,8 +144,13 @@ class ComponentLibrary:
         return self._components[code]
 
     @property
-    def codes(self) -> list[str]:
-        """List of component codes in order."""
+    def codes(self) -> tuple[str, ...]:
+        """Component codes in order, as an immutable tuple.
+
+        Returned as a tuple (not the internal list) so callers cannot
+        mutate the library's singleton state by mutating what they get
+        back from this property.
+        """
         return self._codes
 
     def with_c36_mw(self, mw: float) -> "ComponentLibrary":
