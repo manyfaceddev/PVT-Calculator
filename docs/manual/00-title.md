@@ -20,9 +20,10 @@ end to end: engine, QC checks, Excel import of both ADRIC lab templates,
 a two-page Streamlit UI, ADRIC-styled report export, and CLI parity).
 
 The chapters that follow walk through the platform's purpose and
-architecture, the core data model, the correlations library, the
-flash and recombination workflow, the QC engine, reporting, and the
-testing strategy that backs all of it. The closing chapter documents the
+architecture, an at-the-bench application guide to the Streamlit app, the
+core data model, the correlations library, the flash and recombination
+workflow, Excel import, the QC engine, reporting, and the testing strategy
+that backs all of it. The closing chapter documents the
 deviations-ledger discipline in full — every current entry, the open
 rulings awaiting a decision from the PVT domain owner, and the Phase 3-5
 roadmap read against what the full formula-level dissection of the ADRIC

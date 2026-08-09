@@ -1,4 +1,4 @@
-# Chapter 3: Core Concepts
+# Chapter 4: Core Concepts
 
 This chapter documents the primitives every calculation module in `pvt/`
 is built from: constants, units, the component library, composition
@@ -6,7 +6,7 @@ arithmetic, the sample/study provenance model, the QC engine, and the
 engine's typed exceptions. Everything here lives under `pvt/core/` and
 `pvt/qc/engine.py`.
 
-## 3.1 The Dual Pressure Basis
+## 4.1 The Dual Pressure Basis
 
 `pvt/core/constants.py` is, in its own words, the "single source of truth
 for all PVT calculations", and every module imports constants from here rather
@@ -49,14 +49,14 @@ The temperature standard is $T_{\text{STD}} = 60\,^\circ\text{F} = 519.67\,^\cir
 (`T_STD_F`, `T_STD_R`, `T_STD_K`).
 
 One correlation keeps its own, third, reference pressure entirely outside
-this module: the Hoffman-Crump QC check (Section 3.6) uses 14.7 psia, "the
+this module: the Hoffman-Crump QC check (Section 4.6) uses 14.7 psia, "the
 older, rounder reference pressure the original correlation was published
 with", deliberately not `P_STD_PSIA` and not `P_ATM_PSIA`; it is kept
 module-local in `pvt/qc/checks/hoffman_crump.py` rather than added to
 `pvt.core.constants`, "because it belongs to this one correlation, not to
 the engine's general unit system."
 
-## 3.2 Units Module Conventions
+## 4.2 Units Module Conventions
 
 `pvt/core/units.py` states its own scope in its header: "All conversions
 are one-liners built strictly on `pvt.core.constants`. No numeric literals
@@ -75,7 +75,7 @@ direct `r_to_k`/`k_to_r` pair; a Rankine-Kelvin conversion currently has to
 go through Fahrenheit or Celsius.
 
 **Pressure.** `psig_to_psia`/`psia_to_psig` default their atmospheric
-offset to `P_ATM_PSIA` (14.696 psia, Section 3.1) but accept an explicit
+offset to `P_ATM_PSIA` (14.696 psia, Section 4.1) but accept an explicit
 override; `bara_to_psia`/`psia_to_bara` use `PSIA_PER_BARA` (14.5038);
 `mbar_to_psia` uses the lab's own mbar/psia pair,
 `P_STD_PSIA / P_STD_MBAR` (14.73 / 1015.5981).
@@ -83,7 +83,7 @@ override; `bara_to_psia`/`psia_to_bara` use `PSIA_PER_BARA` (14.5038);
 **Volume.** `scf_to_cc`/`cc_to_scf`, `stb_to_cc`/`cc_to_stb`, and the ratio
 converters `scf_stb_to_cc_cc`/`cc_cc_to_scf_stb` all route through
 `CC_PER_SCF`, `CC_PER_STB`, and `SCF_STB_TO_CC_CC` respectively, the
-14.73 psia lab basis throughout, per Section 3.1.
+14.73 psia lab basis throughout, per Section 4.1.
 
 **Density and API gravity.** This is the one place the module's docstring
 calls out a deliberate, named house convention rather than a strict
@@ -112,7 +112,7 @@ same house formula
 ($\text{SG} = \rho / 0.9991$) is provided as the strict alternative when a
 caller needs the distinction rather than the house shortcut.
 
-## 3.3 The Katz-Firoozabadi Component Library
+## 4.3 The Katz-Firoozabadi Component Library
 
 `pvt/core/components.py` defines a frozen `Component` dataclass (`code`,
 `name`, `mw`, `liquid_density_g_cc`, `tb_r`, `pc_psia`, `tc_r`, plus a
@@ -157,7 +157,7 @@ reading a per-workbook C36+ MW cell and building
 `KATZ_FIROOZABADI.with_c36_mw(c36_mw)` before constructing that sample's
 composition streams.
 
-## 3.4 CompositionStream
+## 4.4 CompositionStream
 
 `pvt/core/composition.py` defines `CompositionStream`, described in its
 module docstring as "the shared composition abstraction consumed by every
@@ -194,7 +194,7 @@ so it sums to exactly 100, raising `InputValidationError` ("composition
 sums to zero") if the raw sum is zero.
 
 **Molecular weight, by two independent routes.** Both are used together as
-a cross-check (Section 3.6):
+a cross-check (Section 4.6):
 
 $$MW_{\text{mol}} = \frac{\sum_i z_i \cdot MW_i}{\sum_i z_i} \qquad MW_{\text{wt}} = \frac{100}{\sum_i (w_i / MW_i)}$$
 
@@ -222,7 +222,7 @@ exclude the cyclics that sort before `C7` in the table (`MCP`, `Benzene`,
 `CycloC6`) while including the ones that sort after it (`MCH`, `Toluene`),
 matching the Flash workbook's `Plus_Properties_Report` convention.
 
-## 3.5 Sample, Study, and CrossRef
+## 4.5 Sample, Study, and CrossRef
 
 `pvt/core/sample.py` defines three dataclasses. Its module docstring states
 the intent directly: "`CrossRef` bridges upstream test results consumed
@@ -254,7 +254,7 @@ home until `Study`/`CrossRef` are wired in a later phase." Wiring
 DV/MSS without manual retyping, design spec Section 3 item 5) is future
 work beyond the current Flash/Recombination slice.
 
-## 3.6 The QC Engine
+## 4.6 The QC Engine
 
 `pvt/qc/engine.py` is, per its own module docstring, the "shared vocabulary
 for every check module under `pvt.qc.checks`": grade a numeric deviation
@@ -332,7 +332,7 @@ Three implementation details worth calling out precisely:
   (`material_balance.py`, `molar_balance.py`, a Z-factor/DAK-vs-Hall-
   Yarborough deviation check, etc.) that belong to later phases.
 
-## 3.7 Typed Exceptions
+## 4.7 Typed Exceptions
 
 `pvt/core/exceptions.py` defines the engine's exception hierarchy, all
 deriving from one base:

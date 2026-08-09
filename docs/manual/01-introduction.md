@@ -73,7 +73,7 @@ under `pvt/` imports `streamlit`, and the Streamlit `AppTest` smoke tests in
 gets hand-retyped from one workbook into the next. The platform's `Study`
 dataclass is designed to hold `CrossRef` references instead, so a downstream
 test consumes an upstream result explicitly and QC can flag when that
-reference has gone stale (spec Section 3, item 5; see Chapter 3 for the
+reference has gone stale (spec Section 3, item 5; see Chapter 4 for the
 current shape of `Study`/`CrossRef`).
 
 **100% test coverage, enforced.** `pyproject.toml` wires

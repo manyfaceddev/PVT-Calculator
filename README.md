@@ -64,7 +64,7 @@ parity (`cli.py recombine` / `cli.py flash`).
 
 Phases 3-5 (CCE/DV/MSS/Density/Viscosity HPHT, CVD/MMP, cross-test QC
 Center) are planned — see [Phase roadmap](#phase-roadmap) below and
-`docs/manual/10-deviations-and-roadmap.md` for what the dissected ADRIC
+`docs/manual/11-deviations-and-roadmap.md` for what the dissected ADRIC
 workbooks already tell us about each of those modules.
 
 ---
@@ -154,11 +154,15 @@ The full manual lives in `docs/manual/` as one chapter per file, compiled
 to a single PDF by `scripts/build_manual.sh`:
 
 - `docs/manual/00-title.md` — title page and abstract
-- `docs/manual/01-introduction.md` through `docs/manual/09-*.md` — platform
-  purpose, architecture, the core data model, the correlations library, the
-  flash/recombination workflow, QC, reporting, and testing, one chapter per
-  topic
-- `docs/manual/10-deviations-and-roadmap.md` — the deviations-ledger
+- `docs/manual/01-introduction.md` through `docs/manual/02-installation.md` —
+  platform purpose and architecture, and installation/running the platform
+- `docs/manual/03-application-guide.md` — the at-the-bench guide to the
+  Streamlit app: what screen to open, which field each reading goes into,
+  and what the results mean
+- `docs/manual/04-core-concepts.md` through `docs/manual/10-reporting.md` —
+  the core data model, the correlations library, the flash/recombination
+  workflow, Excel import, QC, and reporting, one chapter per topic
+- `docs/manual/11-deviations-and-roadmap.md` — the deviations-ledger
   discipline, every current D-001..D-018 entry summarized, the open
   rulings, and the Phase 3-5 roadmap read against the dissected workbooks
 
@@ -232,7 +236,7 @@ test lands — anything else failing golden parity is a bug in the port, not
 a deviation. Each entry stays `proposed` until it is reviewed
 point-by-point with the PVT domain owner, at which point it flips to
 `approved` (the engine's form is correct) or `parity-kept` (the workbook's
-form is kept deliberately); see `docs/manual/10-deviations-and-roadmap.md`
+form is kept deliberately); see `docs/manual/11-deviations-and-roadmap.md`
 for the full current ledger and the open rulings.
 
 ---
@@ -277,7 +281,7 @@ Per the design spec (§2):
 bash scripts/build_manual.sh
 ```
 
-Concatenates `docs/manual/00-title.md` and chapters `01` through `10` (in
+Concatenates `docs/manual/00-title.md` and chapters `01` through `11` (in
 numeric order) through Pandoc into `docs/manual/PVT-Platform-Manual.pdf`
 (table of contents, 2.5cm margins, LaTeX `report` class). Requires
 `pandoc` and a `pdflatex`-providing LaTeX distribution on `PATH`; the

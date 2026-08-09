@@ -1,6 +1,6 @@
-# 10. Deviations Ledger and Roadmap
+# 11. Deviations Ledger and Roadmap
 
-## 10.1 The deviations-ledger discipline
+## 11.1 The deviations-ledger discipline
 
 The engine's authority over calculation logic is unconditional: where a
 source ADRIC workbook is provably wrong, or takes a stance the engine does
@@ -28,7 +28,7 @@ which point it resolves to one of:
 As of this writing every entry in the ledger is still `proposed`; none has
 been walked through the phase-wrap review yet. D-018 additionally carries
 `NEEDS SWEJ RULING` — it is not just unreviewed, it is a live open question
-(see §10.3).
+(see §11.3).
 
 ### What a ledger row contains
 
@@ -42,7 +42,7 @@ Each row in the `docs/excel-deviations.md` table has five fields:
 | **Engine behavior** | What `pvt/` computes instead, with a citation to the published correlation/reference where one exists, and the numeric size of the divergence where it has been measured |
 | **Status** | `proposed`, `approved`, or `parity-kept` |
 
-## 10.2 Current ledger: D-001 through D-018
+## 11.2 Current ledger: D-001 through D-018
 
 Fifteen entries exist today. The IDs are not contiguous: D-012, D-013, and
 D-014 do not appear in `docs/excel-deviations.md` — there is a gap in the
@@ -65,9 +65,9 @@ numbering, not fifteen consecutive rows. Every row below is still
 | D-015 | The old pre-Phase-0 app used `P_std = 14.696` psia and `CC_PER_STB = 158987.1`; engine uses the canonical lab basis `P_STD_PSIA = 14.73` / `CC_PER_STB = 158987.29` per the design spec, shifting recombination outputs ~0.2% versus the old app. |
 | D-016 | Gas_Gradient VBA's `EstimatePseudoCriticals` takes density in g/cc and converts internally; engine's `erbar.c7_plus_criticals` takes SG directly (the VBA's post-conversion value) — callers with raw density must convert first. |
 | D-017 | Flash v6.1 computes a `P_base` (barometric + back-pressure) that is never used downstream; V_gas_std actually uses the separately measured absolute pressure. Engine takes the measured absolute pressure input only and does not compute the unused quantity. |
-| D-018 | LiveOil v4.1's GOR-basis toggle divides the **Stock Tank** GOR by shrinkage when convention divides the **Separator** GOR; masked in the workbook today because its shrinkage factor is 1.0. Engine implements the conventional direction. **Open — needs a ruling; see §10.3.** |
+| D-018 | LiveOil v4.1's GOR-basis toggle divides the **Stock Tank** GOR by shrinkage when convention divides the **Separator** GOR; masked in the workbook today because its shrinkage factor is 1.0. Engine implements the conventional direction. **Open — needs a ruling; see §11.3.** |
 
-## 10.3 Open rulings
+## 11.3 Open rulings
 
 Four items remain genuinely undecided — not unreviewed line items, but
 questions where the workbook, the engine, and lab convention do not all
@@ -101,12 +101,12 @@ point the same way. These are carried over verbatim from
 Two related housekeeping items from the same review are worth noting here
 without being open engineering questions: flipping the fifteen ledger
 entries from `proposed` to `approved`/`parity-kept` is itself pending the
-walkthrough described in §10.1, and the stashed `stash@{0}` (a July 15
+walkthrough described in §11.1, and the stashed `stash@{0}` (a July 15
 cosmetic ASCII-diagram tweak to the pre-Phase-2 `ui/recombination.py`) is
 still sitting untouched, per the design spec's git-workflow section,
 until the UI rebuild absorbs or formally obsoletes it.
 
-## 10.4 Phase roadmap
+## 11.4 Phase roadmap
 
 The phased scope below is defined in
 [`docs/superpowers/specs/2026-08-09-pvt-lab-platform-design.md`](../superpowers/specs/2026-08-09-pvt-lab-platform-design.md)

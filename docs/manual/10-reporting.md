@@ -1,6 +1,6 @@
-# Chapter 9: Reporting
+# Chapter 10: Reporting
 
-## 9.1 The ReportRow / ReportTable Model
+## 10.1 The ReportRow / ReportTable Model
 
 Module: `pvt/reporting/tables.py`. Two small frozen dataclasses carry every report, regardless of which experiment produced it or which format (Excel, in-app pill list, CLI text) ultimately renders it:
 
@@ -28,7 +28,7 @@ def _qc_rows(qc: list[QCResult]) -> list[ReportRow]:
 
 One row per `QCResult`: label is the `check_id`, value is the severity string (`"PASS"`/`"REVIEW"`/`"FAIL"`), unit holds the full check message. Every `QCResult` a caller passes in is guaranteed to appear as its own row, nothing is filtered or deduplicated at this layer.
 
-## 9.2 flash_tables
+## 10.2 flash_tables
 
 ```python
 def flash_tables(results: FlashResults, recomb: MassRecombination, qc: list[QCResult]) -> list[ReportTable]
@@ -63,7 +63,7 @@ Builds three sections from a flash-separation run (`pvt.experiments.flash.calc.c
 
 **"QC Summary"**: `_qc_rows(qc)`, one row per `QCResult` passed in.
 
-## 9.3 recombination_tables
+## 10.3 recombination_tables
 
 ```python
 def recombination_tables(split: MolarSplit, plan: LoadingPlan, qc: list[QCResult]) -> list[ReportTable]
@@ -102,7 +102,7 @@ Builds three sections from a molar gas/oil split (`pvt.experiments.recombination
 
 **"QC Summary"**: `_qc_rows(qc)`, one row per `QCResult` passed in.
 
-## 9.4 Excel Export Styling
+## 10.4 Excel Export Styling
 
 Module: `pvt/reporting/excel_export.py`. `write_report(path, tables, *, title, sample)` writes a single-sheet, ADRIC-styled workbook via `openpyxl`. `path` accepts a filesystem path or any writable binary file-like object (e.g. an in-memory `BytesIO`), because `Workbook.save` accepts either transparently.
 
@@ -136,7 +136,7 @@ Top to bottom, a written report is:
 
 Column widths are fixed: `A` = 30, `B` = 20, `C` = 50. Column C was widened from an earlier value of 16 specifically because QC Summary rows put the full check message in this column (e.g. `"Hoffman-Crump crossplot R²=0.9657 over 3 points (REVIEW)"`), and at 16 characters wide Excel's on-screen display clipped the message (the stored cell value itself was never truncated, only its rendering).
 
-## 9.5 Downloads in the App
+## 10.5 Downloads in the App
 
 `ui/common/components.py`'s `report_download(tables, sample, filename, *, title=None)` is what every page's "Download Excel Report" button calls. The workbook is built **entirely in memory**, never touching disk:
 
@@ -164,7 +164,7 @@ def _prefixed_filename(filename: str, sample_id: str) -> str:
 
 Whitespace in `sample_id` is collapsed to underscores. This exists so that reports downloaded for different samples do not share a download name and silently clobber each other in a browser's downloads folder.
 
-## 9.6 CLI Text Reports
+## 10.6 CLI Text Reports
 
 `cli.py` has two subcommands; only one of them uses the `ReportTable`/`ReportRow` model above.
 

@@ -2,8 +2,8 @@
 # scripts/build_manual.sh — Build the ADRIC PVT Lab Platform software
 # manual PDF from docs/manual/*.md via Pandoc.
 #
-# Concatenates docs/manual/00-title.md followed by chapters 01 through 10
-# (docs/manual/01-*.md ... docs/manual/10-*.md, in numeric order) into
+# Concatenates docs/manual/00-title.md followed by chapters 01 through 11
+# (docs/manual/01-*.md ... docs/manual/11-*.md, in numeric order) into
 # docs/manual/PVT-Platform-Manual.pdf.
 #
 # Requires: pandoc, and a LaTeX distribution providing pdflatex
@@ -36,11 +36,11 @@ command -v pdflatex >/dev/null 2>&1 \
 [ -d "$MANUAL_DIR" ] || fail "manual directory not found: $MANUAL_DIR"
 [ -f "$TITLE_FILE" ] || fail "title/abstract page missing: $TITLE_FILE"
 
-# Chapters 01-10 must each resolve to exactly one docs/manual/<NN>-*.md
+# Chapters 01-11 must each resolve to exactly one docs/manual/<NN>-*.md
 # file, in that numeric order. Fail loudly (rather than silently building
 # a partial manual) if a chapter is missing or a number is ambiguous.
 CHAPTERS=()
-for n in 01 02 03 04 05 06 07 08 09 10; do
+for n in 01 02 03 04 05 06 07 08 09 10 11; do
     matches=("$MANUAL_DIR"/"$n"-*.md)
     if [ "${#matches[@]}" -eq 0 ]; then
         fail "chapter $n is missing: no file matching docs/manual/$n-*.md"
@@ -49,6 +49,17 @@ for n in 01 02 03 04 05 06 07 08 09 10; do
         fail "chapter $n is ambiguous: multiple files match docs/manual/$n-*.md (${matches[*]})"
     fi
     CHAPTERS+=("${matches[0]}")
+done
+
+# ── Figure checks ────────────────────────────────────────────────────────
+# Chapters reference these figures via relative paths (figures/*.png),
+# resolved through pandoc's --resource-path below. Fail loudly if any are
+# missing rather than let pandoc silently emit a chapter with a broken image.
+FIGURES_DIR="$MANUAL_DIR/figures"
+REQUIRED_FIGURES=(flash-apparatus recombination-scheme app-workflow screen-map)
+for fig in "${REQUIRED_FIGURES[@]}"; do
+    [ -f "$FIGURES_DIR/$fig.png" ] \
+        || fail "required figure missing: $FIGURES_DIR/$fig.png"
 done
 
 # ── Version metadata ─────────────────────────────────────────────────────
@@ -63,6 +74,7 @@ done
 # ── Build ─────────────────────────────────────────────────────────────────
 pandoc "$TITLE_FILE" "${CHAPTERS[@]}" \
     -o "$OUT_PDF" \
+    --resource-path="$MANUAL_DIR" \
     --toc --toc-depth=2 \
     -V geometry:margin=2.5cm \
     -V documentclass=report \

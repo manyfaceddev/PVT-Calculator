@@ -1,4 +1,11 @@
-# Chapter 5 - Flash Separation (Atmospheric Flash, Water-Pump Method)
+# Chapter 6 - Flash Separation (Atmospheric Flash, Water-Pump Method)
+
+> **In plain terms.** You let a pressurized oil sample breathe out its
+> gas at atmospheric conditions and measure how much gas came out and
+> how much oil is left - two readings, taken straight off the bench
+> instruments (a pump, a gasometer, a flask on a scale). Everything
+> else in this chapter - GOR, shrinkage, API gravity, the composition
+> recombination - is arithmetic on those two readings.
 
 Module 2 of the platform. This chapter covers the single-stage atmospheric
 flash test: what the lab does at the bench, the three ways to get that data
@@ -13,7 +20,9 @@ taken from `tests/golden/test_flash_sa372.py`,
 `tests/fixtures/sa372_flash.py`, cached from
 `ADRIC_Flash_Separation_Calc_v6.1.xlsx`.
 
-## 5.1 The laboratory test
+## 6.1 The laboratory test
+
+![Atmospheric flash apparatus - displacement pump, flash line, stock-tank flask, and gasometer](figures/flash-apparatus.png)
 
 The engine's own module docstring names the method precisely:
 
@@ -26,7 +35,7 @@ tank conditions. What comes out is a stock-tank oil and a liberated gas; the
 volumes, masses, and compositions of both are what this test measures.
 
 The ADRIC Flash v6.1 template's `Volumetrics_Master` sheet (the workbook the
-importer reads - see 5.2) lays the bench procedure out as three instrument
+importer reads - see 6.2) lays the bench procedure out as three instrument
 blocks:
 
 **The displacement pump.** The live-oil cylinder is metered through a
@@ -35,33 +44,33 @@ taken before and after the transfer (`pump_initial_cc`, `pump_final_cc`,
 cc), and the metered volume is corrected by two calibration factors read off
 the pump itself: a **pump constant** (`pump_constant`) and a **volume
 correction factor** (`vcf`). This gives the charge-pressure volume of live
-oil that was pushed through the flash valve - equation (5.1) below.
+oil that was pushed through the flash valve - equation (6.1) below.
 
 **The stock-tank flask.** What is left after the oil flashes to atmospheric
 conditions is caught in a stock-tank flask. Its volume is read directly off
 the flask's graduation (`v_sto_cc`) - this is an *input*, not something the
 engine derives. Its mass is the flask's gross weight minus its tare weight
 (`oil_tare_g`, `oil_gross_g`), giving the flashed-oil mass by difference -
-equation (5.2).
+equation (6.2).
 
 **The gasometer.** Gas liberated at the flash valve is routed to a
 gasometer - a water-displacement gas meter. Its reading is likewise taken
 before and after (`gasometer_initial_cc`, `gasometer_final_cc`) and
-corrected by a **gasometer factor** (`gasometer_factor`) - equation (5.3).
+corrected by a **gasometer factor** (`gasometer_factor`) - equation (6.3).
 Because the gasometer reads at whatever temperature and pressure prevail in
 the room and the drum at the time (`gas_temp_c`, `gas_abs_pressure_mbar`),
 that raw volume is then corrected to lab standard conditions (14.73 psia /
-60°F) with the combined gas law - equation (5.4). Gas gravity (air = 1) is
+60°F) with the combined gas law - equation (6.4). Gas gravity (air = 1) is
 measured separately (`gas_gravity`) and is not derived by this chain - it
-feeds the gas-density equation (5.5) directly.
+feeds the gas-density equation (6.5) directly.
 
 Both liberated streams - the stock-tank oil and the flash gas - are also
 sent for GC compositional analysis against the 52-component
 Katz-Firoozabadi table (mol% and wt% bases for each). That composition data
-is what section 5.4's mass recombination and section 5.5's composition QC
+is what section 6.4's mass recombination and section 6.5's composition QC
 run on.
 
-## 5.2 Data entry
+## 6.2 Data entry
 
 The platform accepts flash data through three routes, all producing the
 same `FlashVolumetrics` dataclass (13 fields) that `pvt.experiments.flash.calc.calculate`
@@ -125,9 +134,9 @@ Below the volumetrics fields, an **optional** GC composition editor is
 seeded with all 52 Katz-Firoozabadi codes and four blank columns (Gas Mol%,
 Gas Wt%, Oil Mol%, Oil Wt%). Composition is genuinely optional in manual
 mode - a stream is only built when at least one of its two columns has a
-non-zero entry. Leaving it blank still gives you the 12 flash results (5.3);
+non-zero entry. Leaving it blank still gives you the 12 flash results (6.3);
 it skips the mass recombination, plus-fraction, and composition-QC sections
-(5.4–5.5), which need both streams.
+(6.4–6.5), which need both streams.
 
 ### Route 3 - CLI
 
@@ -137,12 +146,12 @@ python cli.py flash --workbook path/to/ADRIC_Flash_Separation_Calc_v6.1.xlsx
 
 The CLI's `flash` subcommand only supports the workbook-upload route - there
 is no field-by-field flag interface for flash (unlike `cli.py recombine`,
-Chapter 6). It runs the same importer, the same calculation chain, the same
+Chapter 7). It runs the same importer, the same calculation chain, the same
 mass recombination, and the same four QC checks (composition normalization
 ×4, MW consistency ×2 - Hoffman-Crump is not run from the CLI), and prints
-the report tables (5.6) as fixed-width text to stdout.
+the report tables (6.6) as fixed-width text to stdout.
 
-## 5.3 Calculation chain
+## 6.3 Calculation chain
 
 `pvt.experiments.flash.calc.calculate` runs the following chain on a
 validated `FlashVolumetrics`. All twelve `FlashResults` fields are produced
@@ -150,61 +159,61 @@ here, in this order.
 
 **Charge-pressure volume** - the live-oil volume metered through the pump:
 
-$$V_{press} = (V_{pump,final} - V_{pump,initial}) \times k_{pump} \times VCF \tag{5.1}$$
+$$V_{press} = (V_{pump,final} - V_{pump,initial}) \times k_{pump} \times VCF \tag{6.1}$$
 
 **Flashed-oil mass** - by difference, gross minus tare:
 
-$$m_{oil} = m_{oil,gross} - m_{oil,tare} \tag{5.2}$$
+$$m_{oil} = m_{oil,gross} - m_{oil,tare} \tag{6.2}$$
 
 **Measured gas volume** - raw gasometer displacement, calibration-corrected:
 
-$$V_{gas,meas} = (V_{gasometer,final} - V_{gasometer,initial}) \times k_{gasometer} \tag{5.3}$$
+$$V_{gas,meas} = (V_{gasometer,final} - V_{gasometer,initial}) \times k_{gasometer} \tag{6.3}$$
 
 **Gas volume at standard conditions** - ideal-gas ($Z=1$) correction from
 the measured absolute pressure and temperature to the lab standard (14.73
 psia / 1015.5981 mbar, 60°F / 288.7056 K):
 
-$$V_{gas,std} = V_{gas,meas} \times \frac{P_{gas}}{P_{std}} \times \frac{T_{std}}{T_{gas}} \tag{5.4}$$
+$$V_{gas,std} = V_{gas,meas} \times \frac{P_{gas}}{P_{std}} \times \frac{T_{std}}{T_{gas}} \tag{6.4}$$
 
 where $P_{gas}$ is `gas_abs_pressure_mbar` and $T_{gas} = t_{gas,°C} + 273.15$ K.
 
 **Gas density at standard conditions** - from the independently-measured gas
 gravity and standard-conditions air density (0.0012255 g/cc):
 
-$$\rho_{gas,std} = \gamma_{gas} \times \rho_{air,std} \tag{5.5}$$
+$$\rho_{gas,std} = \gamma_{gas} \times \rho_{air,std} \tag{6.5}$$
 
 **Flashed-gas mass**:
 
-$$m_{gas} = V_{gas,std} \times \rho_{gas,std} \tag{5.6}$$
+$$m_{gas} = V_{gas,std} \times \rho_{gas,std} \tag{6.6}$$
 
 **Gas-oil ratio**, cc gas (std) per cc stock-tank oil:
 
-$$GOR_{cc/cc} = \frac{V_{gas,std}}{V_{sto}} \tag{5.7}$$
+$$GOR_{cc/cc} = \frac{V_{gas,std}}{V_{sto}} \tag{6.7}$$
 
 and in field units (scf/bbl), using the 5.61458 ft³/bbl conversion:
 
-$$GOR_{scf/bbl} = GOR_{cc/cc} \times 5.61458 \tag{5.8}$$
+$$GOR_{scf/bbl} = GOR_{cc/cc} \times 5.61458 \tag{6.8}$$
 
 **Flash formation volume factor**, live-oil volume at charge pressure per
 unit stock-tank oil volume:
 
-$$B_{o,flash} = \frac{V_{press}}{V_{sto}} \tag{5.9}$$
+$$B_{o,flash} = \frac{V_{press}}{V_{sto}} \tag{6.9}$$
 
 **Shrinkage**, the reciprocal relationship:
 
-$$Shrinkage = \frac{V_{sto}}{V_{press}} \tag{5.10}$$
+$$Shrinkage = \frac{V_{sto}}{V_{press}} \tag{6.10}$$
 
 **Stock-tank oil density at 60°F**:
 
-$$\rho_{oil,60°F} = \frac{m_{oil}}{V_{sto}} \tag{5.11}$$
+$$\rho_{oil,60°F} = \frac{m_{oil}}{V_{sto}} \tag{6.11}$$
 
 **API gravity** - the house convention treats g/cc at 60°F as SG 60/60
 directly:
 
-$$API = \frac{141.5}{\rho_{oil,60°F}} - 131.5 \tag{5.12}$$
+$$API = \frac{141.5}{\rho_{oil,60°F}} - 131.5 \tag{6.12}$$
 
 If validation fails, `calculate` raises `InputValidationError` listing every
-rule violated (Section 5.2) rather than computing on bad data; call it with
+rule violated (Section 6.2) rather than computing on bad data; call it with
 `validate_inputs=False` only if you have already validated upstream.
 
 ### Worked example - SA-372
@@ -230,44 +239,44 @@ workbook cell refs noted):
 
 | Eq. | Quantity | Value | Unit | Workbook cell |
 |---|---|---|---|---|
-| (5.1) | $V_{press}$ | 20.8945 | cc | B13 |
-| (5.2) | $m_{oil}$ | 13.71 | g | B16 |
-| (5.3) | $V_{gas,meas}$ | 958.2037 | cc | B19 |
-| (5.4) | $V_{gas,std}$ | 940.5655 | cc | B27 |
-| (5.5) | $\rho_{gas,std}$ | 0.001404423 | g/cc | B28 |
-| (5.6) | $m_{gas}$ | 1.32095 | g | B29 |
-| (5.7) | $GOR_{cc/cc}$ | 59.6896 | cc/cc | B31 |
-| (5.8) | $GOR_{scf/bbl}$ | 335.13 | scf/bbl | B32 |
-| (5.9) | $B_{o,flash}$ | 1.32600 | vol/vol | B33 |
-| (5.10) | $Shrinkage$ | 0.754151 | - | B34 |
-| (5.11) | $\rho_{oil,60°F}$ | 0.870056 | g/cc | B36 |
-| (5.12) | $API$ | 31.133 | °API | B37 |
+| (6.1) | $V_{press}$ | 20.8945 | cc | B13 |
+| (6.2) | $m_{oil}$ | 13.71 | g | B16 |
+| (6.3) | $V_{gas,meas}$ | 958.2037 | cc | B19 |
+| (6.4) | $V_{gas,std}$ | 940.5655 | cc | B27 |
+| (6.5) | $\rho_{gas,std}$ | 0.001404423 | g/cc | B28 |
+| (6.6) | $m_{gas}$ | 1.32095 | g | B29 |
+| (6.7) | $GOR_{cc/cc}$ | 59.6896 | cc/cc | B31 |
+| (6.8) | $GOR_{scf/bbl}$ | 335.13 | scf/bbl | B32 |
+| (6.9) | $B_{o,flash}$ | 1.32600 | vol/vol | B33 |
+| (6.10) | $Shrinkage$ | 0.754151 | - | B34 |
+| (6.11) | $\rho_{oil,60°F}$ | 0.870056 | g/cc | B36 |
+| (6.12) | $API$ | 31.133 | °API | B37 |
 
-## 5.4 Mass recombination & plus fractions
+## 6.4 Mass recombination & plus fractions
 
 Once both the flashed-oil and flashed-gas GC compositions are available
 (uploaded or entered), `pvt.experiments.flash.recombine.recombine_mass`
 blends them back into a single whole-sample ("wellstream") composition on a
 **mass** basis - the live-fluid technique.
 
-**Gas and oil mass fractions**, from the two measured masses (5.2, 5.6):
+**Gas and oil mass fractions**, from the two measured masses (6.2, 6.6):
 
-$$w_{f,gas} = \frac{m_{gas}}{m_{gas} + m_{oil}} \qquad w_{f,oil} = \frac{m_{oil}}{m_{gas} + m_{oil}} \tag{5.13, 5.14}$$
+$$w_{f,gas} = \frac{m_{gas}}{m_{gas} + m_{oil}} \qquad w_{f,oil} = \frac{m_{oil}}{m_{gas} + m_{oil}} \tag{6.13, 6.14}$$
 
 **Wellstream wt% blend** - each stream's own normalized (sum-to-100) wt%
 basis, mass-fraction-weighted:
 
-$$w_{whole,i} = w_{f,gas} \cdot w_{gas,i} + w_{f,oil} \cdot w_{oil,i} \tag{5.15}$$
+$$w_{whole,i} = w_{f,gas} \cdot w_{gas,i} + w_{f,oil} \cdot w_{oil,i} \tag{6.15}$$
 
 **Mol% back-calculation** - the wt% blend is the primary result; mol% is
 derived from it and renormalized, so the two MW routes agree by
 construction:
 
-$$n_{raw,i} = \frac{w_{whole,i}}{MW_i} \qquad z_{whole,i} = \frac{n_{raw,i} \times 100}{\sum_i n_{raw,i}} \tag{5.16, 5.17}$$
+$$n_{raw,i} = \frac{w_{whole,i}}{MW_i} \qquad z_{whole,i} = \frac{n_{raw,i} \times 100}{\sum_i n_{raw,i}} \tag{6.16, 6.17}$$
 
 **Whole-sample molecular weight** (mw_from_wt on the resulting wellstream):
 
-$$MW_{whole} = \frac{100}{\sum_i (w_{whole,i}/MW_i)} \tag{5.18}$$
+$$MW_{whole} = \frac{100}{\sum_i (w_{whole,i}/MW_i)} \tag{6.18}$$
 
 Worked SA-372 numbers (`tests/golden/test_flash_recombination_sa372.py::test_golden_wf_and_mw`,
 Recombination sheet cells B18/B21):
@@ -290,13 +299,13 @@ onward is in the cut.)
 For a cut with mol% $z_i$ and wt% $w_i$ (both on the stream's normalized
 basis) and component codes restricted to the cut:
 
-$$mol\%_{cut} = \sum_{i \in cut} z_i \qquad wt\%_{cut} = \sum_{i \in cut} w_i \tag{5.19, 5.20}$$
+$$mol\%_{cut} = \sum_{i \in cut} z_i \qquad wt\%_{cut} = \sum_{i \in cut} w_i \tag{6.19, 6.20}$$
 
-$$MW_{cut} = \frac{\sum_{i \in cut} z_i \cdot MW_i}{mol\%_{cut}} \tag{5.21}$$
+$$MW_{cut} = \frac{\sum_{i \in cut} z_i \cdot MW_i}{mol\%_{cut}} \tag{6.21}$$
 
-$$\rho_{cut} = \frac{wt\%_{cut}}{\sum_{i \in cut} (w_i / \rho_i)} \tag{5.22}$$
+$$\rho_{cut} = \frac{wt\%_{cut}}{\sum_{i \in cut} (w_i / \rho_i)} \tag{6.22}$$
 
-(5.22 is ideal-mixing density: same denominator form as (5.11)'s reciprocal
+(6.22 is ideal-mixing density: same denominator form as (6.11)'s reciprocal
 build, applied per-cut.)
 
 **Worked C7+ numbers, SA-372:**
@@ -316,10 +325,10 @@ $$mol\%_{C7+,oil} = 79.873\%$$
 | MW | 222.53 | g/mol |
 | Density | 0.84661 | g/cc |
 
-## 5.5 QC applied
+## 6.5 QC applied
 
 QC only runs on the composition streams - it needs both an oil and a gas
-`CompositionStream` (5.2, Route 1 or an optional Route 2 entry). Each check
+`CompositionStream` (6.2, Route 1 or an optional Route 2 entry). Each check
 runs independently: one check raising `InputValidationError` (for example, a
 manual-entry stream with mol% only and no wt% basis, which `mw_consistency`
 cannot grade) does not block the others - the page renders a caption
@@ -327,19 +336,19 @@ explaining the skip and continues.
 
 | Check | Runs on | Threshold (review / fail) | What it grades |
 |---|---|---|---|
-| `composition_sum` | Gas mol%, Gas wt%, Oil mol%, Oil wt% (4 checks) | 0.5 / 2.0 (points off 100) | Raw composition sum vs. 100 - eq. (5.23) |
-| `mw_consistency_pct` | Gas, Oil (2 checks) | 5.0% / 10.0% | mol%-derived MW vs. wt%-derived MW - eq. (5.24) |
-| `hoffman_r2` | Gas/liquid pair (1 check) | R² ≥ 0.98 / ≥ 0.95 (floor) | Hoffman-Crump K-value consistency crossplot - eqs. (5.25)–(5.26) |
+| `composition_sum` | Gas mol%, Gas wt%, Oil mol%, Oil wt% (4 checks) | 0.5 / 2.0 (points off 100) | Raw composition sum vs. 100 - eq. (6.23) |
+| `mw_consistency_pct` | Gas, Oil (2 checks) | 5.0% / 10.0% | mol%-derived MW vs. wt%-derived MW - eq. (6.24) |
+| `hoffman_r2` | Gas/liquid pair (1 check) | R² ≥ 0.98 / ≥ 0.95 (floor) | Hoffman-Crump K-value consistency crossplot - eqs. (6.25)–(6.26) |
 
-$$deviation_{sum} = raw\_sum - 100.0 \tag{5.23}$$
+$$deviation_{sum} = raw\_sum - 100.0 \tag{6.23}$$
 
-$$mw\_consistency\% = \frac{MW_{mol} - MW_{wt}}{MW_{wt}} \times 100 \tag{5.24}$$
+$$mw\_consistency\% = \frac{MW_{mol} - MW_{wt}}{MW_{wt}} \times 100 \tag{6.24}$$
 
 The Hoffman-Crump crossplot (`pvt.qc.checks.hoffman_crump`) forms one point
 per component present, with positive mole fraction, in **both** the gas and
 liquid streams:
 
-$$K_i = \frac{y_i}{x_i} \qquad b_i = \frac{\log_{10}(P_{c,i}/14.7)}{1/T_{b,i} - 1/T_{c,i}} \qquad F_i = b_i\left(\frac{1}{T_{b,i}} - \frac{1}{T_R}\right) \qquad y\text{-axis} = \log_{10}(K_i \cdot P) \tag{5.25}$$
+$$K_i = \frac{y_i}{x_i} \qquad b_i = \frac{\log_{10}(P_{c,i}/14.7)}{1/T_{b,i} - 1/T_{c,i}} \qquad F_i = b_i\left(\frac{1}{T_{b,i}} - \frac{1}{T_R}\right) \qquad y\text{-axis} = \log_{10}(K_i \cdot P) \tag{6.25}$$
 
 ($P$ = flash pressure, $T_R$ = flash temperature in Rankine; 14.7 psia is
 the Hoffman-Crump correlation's own fixed reference pressure, not one of the
@@ -347,7 +356,7 @@ engine's standard-condition constants.) A least-squares line is fit
 ($\log_{10}(KP)$ vs. $F$) and graded on its R²; since `grade()` only
 understands "smaller deviation is better," the R²-floor pair is converted:
 
-$$deviation_{R^2} = 1 - R^2, \text{ graded against } (1-0.98,\ 1-0.95) \tag{5.26}$$
+$$deviation_{R^2} = 1 - R^2, \text{ graded against } (1-0.98,\ 1-0.95) \tag{6.26}$$
 
 Fewer than 2 qualifying components, or a degenerate fit (all points sharing
 one F-factor or one $\log_{10}(KP)$), raises `InputValidationError` - the
@@ -375,21 +384,21 @@ Note (deviations ledger D-017): the workbook's `Volumetrics_Master!B25`
 computes a `P_base` composite from barometric pressure (E17) and back
 pressure (E20) but never uses it downstream; the engine likewise takes only
 the measured absolute pressure input (`gas_abs_pressure_mbar`) for eq.
-(5.4), and does not read E17/E20 at all.
+(6.4), and does not read E17/E20 at all.
 
-## 5.6 Report contents
+## 6.6 Report contents
 
 `pvt.reporting.tables.flash_tables` builds three sections from a
 `FlashResults`, a `MassRecombination`, and whatever QC results were run:
 
-1. **Flash Results** - all twelve values from Section 5.3, formatted to the
+1. **Flash Results** - all twelve values from Section 6.3, formatted to the
    same precision as the golden tests (e.g. GOR to 4 decimal places cc/cc
    and 2 decimal places scf/bbl, API to 1 decimal).
 2. **Whole Sample** - Gas Mass Fraction and Oil Mass Fraction (wt%, from
    5.13/5.14) and Whole Sample MW (from 5.18).
 3. **QC Summary** - one row per `QCResult` passed in: check id, severity,
    and the full message. Every QC result the caller runs appears here,
-   whichever of Section 5.5's checks actually ran.
+   whichever of Section 6.5's checks actually ran.
 
 `pvt.reporting.excel_export.write_report` writes these, plus a Sample
 Information block (sample ID, well, field, reservoir, depth, fluid type,

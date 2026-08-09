@@ -1,6 +1,6 @@
-# Chapter 8: QC Reference
+# Chapter 9: QC Reference
 
-## 8.1 The QC Engine Model
+## 9.1 The QC Engine Model
 
 Every QC check in the platform speaks the same small vocabulary, defined once in `pvt/qc/engine.py` and reused by every check module under `pvt/qc/checks/` and by the two QC checks that live inline in `pvt.experiments` (`gor_actual_vs_target`, see 8.5).
 
@@ -75,7 +75,7 @@ def override(self, check_id, review_at, fail_at, note) -> None:
 
 Every override is appended to `registry.audit` with the caller-supplied `note`, so a QC report can explain why a particular study's bands differ from the house defaults, rather than silently applying a different number. `registry.get(check_id)` returns the current `(review_at, fail_at)` pair, whether default or overridden.
 
-## 8.2 composition_normalization
+## 9.2 composition_normalization
 
 Module: `pvt/qc/checks/composition_normalization.py`. Check ID: `composition_sum`.
 
@@ -92,7 +92,7 @@ def check(stream, basis, registry=None) -> QCResult:
 
 Default threshold band: **review at 0.5, fail at 2.0** (percentage points away from 100).
 
-## 8.3 mw_consistency
+## 9.3 mw_consistency
 
 Module: `pvt/qc/checks/mw_consistency.py`. Check ID: `mw_consistency_pct`.
 
@@ -114,7 +114,7 @@ If a stream carries only one basis (mol% or wt%, not both), `mw_from_mol()`/`mw_
 
 Default threshold band: **review at 5.0%, fail at 10.0%**.
 
-## 8.4 hoffman_crump
+## 9.4 hoffman_crump
 
 Module: `pvt/qc/checks/hoffman_crump.py`. Check ID: `hoffman_r2`.
 
@@ -188,7 +188,7 @@ Fitting a line needs at least 2 points. `_fit_least_squares` raises `InputValida
 
 `check()` returns a `HoffmanResult` (points, slope, intercept, r_squared, qc) rather than a bare `QCResult`, so callers can also plot the fitted line.
 
-## 8.5 gor_actual_vs_target
+## 9.5 gor_actual_vs_target
 
 This check is **not** a module under `pvt/qc/checks/`; it is implemented inline inside `pvt.experiments.recombination.loading.verify_actual_gor` (`pvt/experiments/recombination/loading.py`), using the same `QCResult`/`grade`/`ThresholdRegistry` contract as every other check. Check ID: `gor_actual_vs_target_pct`.
 
@@ -220,7 +220,7 @@ Pressure basis note: `P_load_psia = psig + 14.73` (`constants.P_STD_PSIA`), not 
 
 Default threshold band: **review at 5.0%, fail at 10.0%**.
 
-## 8.6 ThresholdRegistry Defaults
+## 9.6 ThresholdRegistry Defaults
 
 Full table, `pvt/qc/engine.py`, `ThresholdRegistry.DEFAULTS`:
 
@@ -239,7 +239,7 @@ Full table, `pvt/qc/engine.py`, `ThresholdRegistry.DEFAULTS`:
 
 Every threshold not marked "pending Swej calibration" is transcribed from ADRIC house conventions; `hoffman_r2` is the sole documented exception, because the source PVT-check sheets show the Hoffman-Crump crossplot visually with no numeric acceptance gate of their own.
 
-## 8.7 How Pages Surface QC
+## 9.7 How Pages Surface QC
 
 ### The pill
 
@@ -286,7 +286,7 @@ except InputValidationError as exc:
     st.warning("Composition QC skipped: " + "; ".join(exc.errors))
 ```
 
-`mw_consistency` is not run on this page at all, not even inside a try/except, because the LiveOil v4.1 importer only reads the Mol% (INPUT) column (block C, section 7.4); the resulting streams never carry a wt% basis, so the check would always raise. The code comment on this page notes it is "skipped entirely rather than caught-and-hidden on every single run."
+`mw_consistency` is not run on this page at all, not even inside a try/except, because the LiveOil v4.1 importer only reads the Mol% (INPUT) column (block C, section 8.4); the resulting streams never carry a wt% basis, so the check would always raise. The code comment on this page notes it is "skipped entirely rather than caught-and-hidden on every single run."
 
 The loading plan and actual-GOR verification are similarly guarded, but with `except (InputValidationError, ZeroDivisionError)`, since `plan_loading`/`verify_actual_gor` can also divide by a caller-supplied zero (e.g. a target GOR of 0):
 
@@ -295,4 +295,4 @@ except (InputValidationError, ZeroDivisionError) as exc:
     st.warning(f"Loading plan unavailable: {exc}")
 ```
 
-The verify-GOR `QCResult`, once computed, renders through `qc_panel([verify_qc])` under `**Actual GOR QC**`, and is appended to the same `qc_results` list that feeds the report download (Chapter 9).
+The verify-GOR `QCResult`, once computed, renders through `qc_panel([verify_qc])` under `**Actual GOR QC**`, and is appended to the same `qc_results` list that feeds the report download (Chapter 10).

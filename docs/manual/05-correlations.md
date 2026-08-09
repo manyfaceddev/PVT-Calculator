@@ -1,4 +1,4 @@
-# Chapter 4: Correlations Reference
+# Chapter 5: Correlations Reference
 
 This chapter documents every empirical correlation implemented under
 `pvt/correlations/`: pseudocritical properties, gas compressibility factor
@@ -17,9 +17,9 @@ and cross-referenced to its ledger entry in `docs/excel-deviations.md`
 
 ---
 
-## 4.1 Pseudocritical Properties (`pvt/correlations/pseudocritical/`)
+## 5.1 Pseudocritical Properties (`pvt/correlations/pseudocritical/`)
 
-### 4.1.1 Sutton (1985)
+### 5.1.1 Sutton (1985)
 
 **Purpose.** Estimate sweet-gas pseudocritical temperature and pressure
 from gas specific gravity alone (no composition required).
@@ -67,7 +67,7 @@ and `test_out_of_range_rejected` parametrizes over $\gamma_g \in
 
 ---
 
-### 4.1.2 Stewart-Burkhardt-Voo (1959)
+### 5.1.2 Stewart-Burkhardt-Voo (1959)
 
 **Purpose.** Compute mixture pseudocriticals from a full mole composition
 using the SBV J/K mixing rules.
@@ -123,7 +123,7 @@ recover the component's own $(T_c, p_c)$ from the library exactly.
 
 ---
 
-### 4.1.3 Piper, McCain & Corredor (1993), SPE 26668
+### 5.1.3 Piper, McCain & Corredor (1993), SPE 26668
 
 **Purpose.** Estimate mixture pseudocriticals from either (a) gas gravity
 plus sour-species mole fractions, or (b) a full mole composition, using
@@ -259,7 +259,7 @@ would give a materially different (wrong) answer.
 
 ---
 
-### 4.1.4 Wichert-Aziz (1972) Sour Gas Correction
+### 5.1.4 Wichert-Aziz (1972) Sour Gas Correction
 
 **Purpose.** Correct pseudocritical temperature and pressure for the
 presence of CO2 and H2S, given a sweet-gas $(T_{pc}, p_{pc})$ pair (e.g.
@@ -316,7 +316,7 @@ confirms the expected physical direction.
 
 ---
 
-### 4.1.5 Erbar C7+ Pseudocriticals (Chao-Seader lineage; Hall 1971 Vc)
+### 5.1.5 Erbar C7+ Pseudocriticals (Chao-Seader lineage; Hall 1971 Vc)
 
 **Purpose.** Estimate $(T_c, p_c, V_c)$ for a C7+ pseudo-component from its
 molecular weight and specific gravity, for use as an input to mixture
@@ -507,9 +507,9 @@ to exercise the $T_c<0$/$p_c<0$ defensive floors).
 
 ---
 
-## 4.2 Gas Compressibility Factor (Z) (`pvt/correlations/zfactor/`)
+## 5.2 Gas Compressibility Factor (Z) (`pvt/correlations/zfactor/`)
 
-### 4.2.1 Dranchuk & Abou-Kassem (1975)
+### 5.2.1 Dranchuk & Abou-Kassem (1975)
 
 **Purpose.** Solve the DAK equation of state for Z by Newton iteration on
 the implicit residual, given pressure, temperature, and pseudocriticals.
@@ -611,7 +611,7 @@ which drives a Newton step negative to exercise the $Z\le0\to10^{-3}$ clamp.
 
 ---
 
-### 4.2.2 Hall & Yarborough (1973)
+### 5.2.2 Hall & Yarborough (1973)
 
 **Purpose.** Solve the Hall & Yarborough equation of state for Z by Newton
 iteration on the reduced gas density $y$, using the **reciprocal** reduced
@@ -706,13 +706,13 @@ confirms iteration still converges. Full `InputValidationError` /
 
 ---
 
-## 4.3 Bubble-Point Pressure (`pvt/correlations/bubble_point/`)
+## 5.3 Bubble-Point Pressure (`pvt/correlations/bubble_point/`)
 
 The package intentionally exposes no ambiguous bare `bubble_point` name at
 the package level (four independent correlations each define their own);
 call `<module>.bubble_point(...)` explicitly.
 
-### 4.3.1 Standing (1947)
+### 5.3.1 Standing (1947)
 
 **Purpose.** Estimate bubble-point pressure from solution GOR, gas
 gravity, API gravity, and temperature, using Standing's original
@@ -779,7 +779,7 @@ dedicated `TestStandingBubblePointDeprecatedAlias` class (confirming the
 
 ---
 
-### 4.3.2 Vasquez & Beggs (1980)
+### 5.3.2 Vasquez & Beggs (1980)
 
 **Purpose.** Estimate bubble-point pressure from solution GOR, gas
 gravity, API gravity, and temperature, with a separator-gravity correction
@@ -870,7 +870,7 @@ four range warnings in one call).
 
 ---
 
-### 4.3.3 Glaso (1980), SPE 8016
+### 5.3.3 Glaso (1980), SPE 8016
 
 **Purpose.** Estimate bubble-point pressure via Glaso's generalized
 correlating number and a quadratic-in-log10 fit.
@@ -935,7 +935,7 @@ coverage is present for both `pb_star` and `bubble_point`.
 
 ---
 
-### 4.3.4 Al-Marhoun (1988)
+### 5.3.4 Al-Marhoun (1988)
 
 **Purpose.** Estimate bubble-point pressure for Middle East crude oils
 from solution GOR, gas gravity, stock-tank oil specific gravity, and
@@ -988,9 +988,9 @@ bounds and the absolute-zero temperature floor.
 
 ---
 
-## 4.4 Gas Viscosity (`pvt/correlations/viscosity/`)
+## 5.4 Gas Viscosity (`pvt/correlations/viscosity/`)
 
-### 4.4.1 Lee, Gonzalez & Eakin (1966), SPE 1340
+### 5.4.1 Lee, Gonzalez & Eakin (1966), SPE 1340
 
 **Purpose.** Estimate natural gas viscosity from temperature, apparent
 molecular weight, and gas density (itself computed from the real-gas law).
@@ -1071,7 +1071,7 @@ regression). `test_viscosity_increases_with_density` and
 
 ---
 
-### 4.4.2 Jossi, Stiel & Thodos (1962)
+### 5.4.2 Jossi, Stiel & Thodos (1962)
 
 **Purpose.** Estimate dense-gas viscosity from reduced density and a
 dilute-gas ("zero-density") viscosity term, transcribed from the Amoco
@@ -1161,7 +1161,7 @@ present for both functions.
 
 ---
 
-### 4.4.3 Critical Volume Table (`critical_volumes.py`)
+### 5.4.3 Critical Volume Table (`critical_volumes.py`)
 
 **Purpose.** Supply the mole-fraction-weighted mixture critical volume
 $V_{c,mix}$ that `jossi_stiel_thodos.reduced_density` consumes, using a
@@ -1225,7 +1225,7 @@ independently. `test_unknown_key_raises` /
 
 ---
 
-## 4.5 Summary Table
+## 5.5 Summary Table
 
 | Module | Correlation | Source year | Anchor type |
 |---|---|---|---|

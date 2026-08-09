@@ -1,6 +1,6 @@
-# Chapter 7: Excel Import
+# Chapter 8: Excel Import
 
-## 7.1 The Template-Import Philosophy
+## 8.1 The Template-Import Philosophy
 
 The PVT Lab Platform does not re-implement the ADRIC lab workbooks in Excel form and it does not trust any formula result already sitting in a cell. When a lab technician uploads a filled template, the importer opens the workbook with `openpyxl.load_workbook(path, data_only=True, read_only=True)` and reads back **only the yellow input cells**, the raw numbers and text a person typed in. Every computed quantity, from the flash gas volume at standard conditions to the wellstream molecular weight, is recalculated from scratch by the Python engine (`pvt.experiments.*`).
 
@@ -12,7 +12,7 @@ This gives the workbook a single job: it is the data carrier, the audited paper 
 
 Both importers live under `pvt/io/excel_import/` and each exposes one function, `read(path)`, returning a frozen dataclass (`FlashImport`, `LiveOilImport`) ready to hand straight to the matching `pvt.experiments` calculation chain.
 
-## 7.2 Supported Templates
+## 8.2 Supported Templates
 
 | Template | File | Importer module | Sheets read |
 |---|---|---|---|
@@ -21,7 +21,7 @@ Both importers live under `pvt/io/excel_import/` and each exposes one function, 
 
 The Flash v6.1 workbook carries all of its yellow inputs on one sheet; `Component_Properties`, `Recombination`, and `Plus_Properties_Report` on that workbook are downstream/computed and are not opened by the importer at all. The LiveOil v4.1 workbook spreads its inputs across five sheets, all of which are opened and validated.
 
-## 7.3 ADRIC Flash v6.1 Cell Map
+## 8.3 ADRIC Flash v6.1 Cell Map
 
 Source: `pvt/io/excel_import/flash_v61.py`. All cells below are on the `Volumetrics_Master` sheet.
 
@@ -59,7 +59,7 @@ Source: `pvt/io/excel_import/flash_v61.py`. All cells below are on the `Volumetr
 | E17 | not read | Barometric pressure | mbar |
 | E20 | not read | Back pressure | mbar |
 
-E17 and E20 are read visually by the lab technician but never consumed by the engine; see section 7.9.
+E17 and E20 are read visually by the lab technician but never consumed by the engine; see section 8.9.
 
 ### Block D: GC Compositions (row 40 header, rows 41-92, 52 components)
 
@@ -73,7 +73,7 @@ E17 and E20 are read visually by the lab technician but never consumed by the en
 
 Row order matches `pvt.core.components.KATZ_FIROOZABADI.codes` exactly except for the three aliased codes.
 
-## 7.4 ADRIC LiveOil v4.1 Cell Map
+## 8.4 ADRIC LiveOil v4.1 Cell Map
 
 Source: `pvt/io/excel_import/liveoil_v41.py`. All five required sheets are opened: `Sample_Info`, `STO_Composition`, `Gas_Composition`, `Recombination`, `Loading_Volumes`.
 
@@ -132,7 +132,7 @@ Source: `pvt/io/excel_import/liveoil_v41.py`. All five required sheets are opene
 
 Unlike the Flash v6.1 importer, this template carries a `Reservoir` field (E6) directly, so `Sample.reservoir` is populated here rather than left as `""`.
 
-## 7.5 Component Name Alias Handling
+## 8.5 Component Name Alias Handling
 
 Both templates' GC composition rows use a `Code` column that mostly, but not exactly, matches `pvt.core.components.KATZ_FIROOZABADI.codes`. Each importer carries a small local `_ALIAS` dict, applied as `code = _ALIAS.get(raw_code, raw_code)` before the row is stored:
 
@@ -157,7 +157,7 @@ Both templates' GC composition rows use a `Code` column that mostly, but not exa
 
 The LiveOil v4.1 composition block is also one component short: it carries 51 rows against the library's 52 codes, omitting `TMB124` (1,2,4-Trimethylbenzene) entirely. That component is not aliased to anything, it is simply absent from every row read, matching what the lab actually reported. `CompositionStream` does not require every library code to be present, so the resulting stream is silently missing that one component.
 
-## 7.6 The C36+ Molecular Weight Override
+## 8.6 The C36+ Molecular Weight Override
 
 `KATZ_FIROOZABADI`'s built-in C36+ default molecular weight is 636.4 g/mol (see `docs/excel-deviations.md` D-001). The LiveOil v4.1 importer overrides this per sample: it reads `STO_Composition!D65` as `c36_mw`, then builds
 
@@ -169,7 +169,7 @@ before either composition stream (`STO_Composition`, `Gas_Composition`) is const
 
 The Flash v6.1 importer has no equivalent override; it always uses the canonical `KATZ_FIROOZABADI` library as-is.
 
-## 7.7 Wrong-File Detection
+## 8.7 Wrong-File Detection
 
 Each importer checks that the workbook it was handed is actually an instance of the template it expects, before reading any input cell.
 
@@ -193,7 +193,7 @@ A third, LiveOil-specific check validates `Recombination!B6`'s GOR-basis dropdow
 Recombination!B6: unrecognized GOR basis '<value>'
 ```
 
-## 7.8 Blank-Cell and Negative-Composition Error Behavior
+## 8.8 Blank-Cell and Negative-Composition Error Behavior
 
 Both importers apply the same two guards, using the same helper pattern (`_num`), and both name the offending cell in the raised error.
 
@@ -228,7 +228,7 @@ Recombination!row 22 (nC5): negative Mol% value -1.2
 
 `CompositionStream` itself does not validate value sign, so the Excel-import boundary is the deliberate place to reject a malformed lab entry sheet.
 
-## 7.9 What Is Deliberately Not Read
+## 8.9 What Is Deliberately Not Read
 
 Every importer reads a strict subset of its template's cells. The rest fall into two categories:
 
