@@ -37,10 +37,12 @@ helpers it uses live in `flash_page_logic`, which has no top-level
 from __future__ import annotations
 
 import math
+from io import BytesIO
 from pathlib import Path
 
 import pandas as pd
 import pytest
+from openpyxl import Workbook
 from streamlit.runtime.uploaded_file_manager import UploadedFile, UploadedFileRec
 from streamlit.testing.v1 import AppTest
 
@@ -265,6 +267,17 @@ def _fake_uploaded_flash_workbook(file_id: str) -> UploadedFile:
     return UploadedFile(rec, None)
 
 
+def _fake_uploaded_bad_workbook(file_id: str) -> UploadedFile:
+    """A structurally-invalid workbook (no Volumetrics_Master sheet at
+    all) -- `read_uploaded_bytes` raises InputValidationError on it."""
+    buffer = BytesIO()
+    Workbook().save(buffer)
+    rec = UploadedFileRec(
+        file_id=file_id, name="bad.xlsx", type="application/xlsx", data=buffer.getvalue()
+    )
+    return UploadedFile(rec, None)
+
+
 def test_flash_upload_reparse_gated_by_file_identity() -> None:
     """Review-round finding: the upload branch used to re-parse the
     workbook (and re-write `flash.active`/render `st.success`) on EVERY
@@ -289,6 +302,33 @@ def test_flash_upload_reparse_gated_by_file_identity() -> None:
     at.run()
     assert not at.exception
     assert len(at.success) == 1
+
+
+def test_flash_upload_error_persists_across_unrelated_rerun() -> None:
+    """Re-review regression: the file-identity gate (above) only ran the
+    try/except -- and thus only called st.error -- on the run file_id
+    actually changed. An unrelated rerun with the SAME bad file still
+    attached rendered nothing at all, indistinguishable from no upload.
+    The error must now be cached and re-rendered on every run while the
+    identity is unchanged, and cleared once a good file replaces it."""
+    at = AppTest.from_file("ui/pages/flash_page.py")
+    at.session_state["flash.uploaded_file"] = _fake_uploaded_bad_workbook("bad-1")
+    at.run()
+    assert not at.exception
+    assert len(at.error) == 1
+
+    # Unrelated rerun, same bad file still attached -> error must STILL render.
+    at.run()
+    assert not at.exception
+    assert len(at.error) == 1
+
+    # Attach a good workbook (new identity) -> error gone, results render.
+    at.session_state["flash.uploaded_file"] = _fake_uploaded_flash_workbook("good-1")
+    at.run()
+    assert not at.exception
+    assert len(at.error) == 0
+    assert len(at.success) == 1
+    assert "flash.active" in at.session_state
 
 
 def test_flash_manual_invalid_resubmit_clears_stale_results() -> None:

@@ -343,6 +343,18 @@ def _fake_uploaded_liveoil_workbook(file_id: str) -> UploadedFile:
     return UploadedFile(rec, None)
 
 
+def _fake_uploaded_bad_workbook(file_id: str) -> UploadedFile:
+    """A structurally-invalid workbook for the LiveOil importer (the Flash
+    v6.1 template -- missing every sheet `liveoil_v41.read` requires) --
+    `read_uploaded_liveoil_bytes` raises InputValidationError on it, same
+    fixture `test_wrong_file_rejected` uses at the importer level."""
+    flash_wb = Path("tests/fixtures/workbooks/ADRIC_Flash_Separation_Calc_v6.1.xlsx")
+    rec = UploadedFileRec(
+        file_id=file_id, name="wrong.xlsx", type="application/xlsx", data=flash_wb.read_bytes()
+    )
+    return UploadedFile(rec, None)
+
+
 def test_molar_upload_reparse_gated_by_file_identity() -> None:
     """Review-round finding, same as flash_page's upload branch: the molar
     upload branch used to re-parse the workbook (and re-write
@@ -368,6 +380,33 @@ def test_molar_upload_reparse_gated_by_file_identity() -> None:
     at.run()
     assert not at.exception
     assert len(at.success) == 1
+
+
+def test_molar_upload_error_persists_across_unrelated_rerun() -> None:
+    """Re-review regression: the file-identity gate (above) only ran the
+    try/except -- and thus only called st.error -- on the run file_id
+    actually changed. An unrelated rerun with the SAME bad file still
+    attached rendered nothing at all, indistinguishable from no upload.
+    The error must now be cached and re-rendered on every run while the
+    identity is unchanged, and cleared once a good file replaces it."""
+    at = AppTest.from_file(PAGE)
+    at.session_state["recomb.molar_uploaded_file"] = _fake_uploaded_bad_workbook("bad-1")
+    at.run()
+    assert not at.exception
+    assert len(at.error) == 1
+
+    # Unrelated rerun, same bad file still attached -> error must STILL render.
+    at.run()
+    assert not at.exception
+    assert len(at.error) == 1
+
+    # Attach a good workbook (new identity) -> error gone, results render.
+    at.session_state["recomb.molar_uploaded_file"] = _fake_uploaded_liveoil_workbook("good-1")
+    at.run()
+    assert not at.exception
+    assert len(at.error) == 0
+    assert len(at.success) == 1
+    assert "recomb.molar_active" in at.session_state
 
 
 def test_molar_upload_verify_pill_survives_unrelated_rerun_with_file_still_attached() -> None:

@@ -33,6 +33,7 @@ import streamlit as st
 
 from pvt.core import constants as c
 from pvt.core import units as u
+from pvt.core.composition import CompositionStream
 from pvt.core.exceptions import InputValidationError
 from pvt.experiments.flash.calc import calculate
 from pvt.experiments.flash.models import FlashVolumetrics
@@ -79,8 +80,9 @@ with tab_upload:
                 imp = read_uploaded_bytes(uploaded.getvalue())
             except InputValidationError as exc:
                 st.session_state.pop("flash.active", None)
-                st.error("; ".join(exc.errors))
+                st.session_state["flash.upload_error"] = "; ".join(exc.errors)
             else:
+                st.session_state.pop("flash.upload_error", None)
                 st.session_state["flash.active"] = {
                     "volumetrics": imp.volumetrics,
                     "oil_stream": imp.oil_stream,
@@ -88,6 +90,16 @@ with tab_upload:
                     "sample": imp.sample,
                 }
                 st.success(f"Loaded {imp.sample.sample_id}.")
+
+        # Re-render the cached error on EVERY run while this same (bad) file
+        # stays attached -- review-round regression: the identity gate above
+        # only runs the try/except (and thus only calls st.error) on the run
+        # the file_id actually changes, so an unrelated rerun with the bad
+        # file still attached rendered nothing, indistinguishable from no
+        # upload at all.
+        upload_error = st.session_state.get("flash.upload_error")
+        if upload_error:
+            st.error(upload_error)
 
 with tab_manual:
     st.caption("Mirrors the ADRIC Flash v6.1 Volumetrics_Master sheet.")
@@ -184,17 +196,25 @@ else:
             # mol% and would otherwise have succeeded). A skipped check
             # renders a small caption explaining why instead.
             st.markdown("**Composition QC**")
+            # Narrowed locals for the lambdas below to close over: mypy
+            # doesn't carry the "is not None" narrowing of gas_stream/
+            # oil_stream (declared `CompositionStream | None` in this
+            # function's outer scope) into a closure, so the lambdas below
+            # would otherwise report "CompositionStream | None" incompatible
+            # with `check`'s `CompositionStream` parameter.
+            gs: CompositionStream = gas_stream
+            ost: CompositionStream = oil_stream
             checks: list[tuple[str, Callable[[], QCResult]]] = [
                 ("Gas mol% normalization",
-                 lambda: composition_normalization.check(gas_stream, "mol")),
+                 lambda: composition_normalization.check(gs, "mol")),
                 ("Gas wt% normalization",
-                 lambda: composition_normalization.check(gas_stream, "wt")),
+                 lambda: composition_normalization.check(gs, "wt")),
                 ("Oil mol% normalization",
-                 lambda: composition_normalization.check(oil_stream, "mol")),
+                 lambda: composition_normalization.check(ost, "mol")),
                 ("Oil wt% normalization",
-                 lambda: composition_normalization.check(oil_stream, "wt")),
-                ("MW consistency (gas)", lambda: mw_consistency.check(gas_stream)),
-                ("MW consistency (oil)", lambda: mw_consistency.check(oil_stream)),
+                 lambda: composition_normalization.check(ost, "wt")),
+                ("MW consistency (gas)", lambda: mw_consistency.check(gs)),
+                ("MW consistency (oil)", lambda: mw_consistency.check(ost)),
             ]
             for label, run_check in checks:
                 try:

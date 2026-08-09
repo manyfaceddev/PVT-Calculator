@@ -263,7 +263,7 @@ with tab_molar:
                 except InputValidationError as exc:
                     st.session_state.pop("recomb.molar_active", None)
                     st.session_state.pop("recomb.verify_result", None)
-                    st.error("; ".join(exc.errors))
+                    st.session_state["recomb.upload_error"] = "; ".join(exc.errors)
                 except ZeroDivisionError:
                     # A malformed-but-structurally-valid workbook (e.g. shrinkage
                     # or z_std of 0.0 in the Recombination sheet's B7/B12) reaches
@@ -271,11 +271,12 @@ with tab_molar:
                     # negative-composition guard -- degrade rather than crash.
                     st.session_state.pop("recomb.molar_active", None)
                     st.session_state.pop("recomb.verify_result", None)
-                    st.error(
+                    st.session_state["recomb.upload_error"] = (
                         "Workbook values produce a division by zero (check shrinkage "
                         "factor and Z at standard conditions are non-zero)."
                     )
                 else:
+                    st.session_state.pop("recomb.upload_error", None)
                     st.session_state["recomb.molar_active"] = {
                         "split": molar_split_result,
                         "sto_stream": molar_imp.sto_stream,
@@ -293,6 +294,16 @@ with tab_molar:
                     # re-verified.
                     st.session_state.pop("recomb.verify_result", None)
                     st.success(f"Loaded {molar_imp.sample.sample_id}.")
+
+            # Re-render the cached error on EVERY run while this same (bad)
+            # file stays attached -- review-round regression: the identity
+            # gate above only runs the try/except (and thus only sets
+            # st.error) on the run file_id actually changes, so an unrelated
+            # rerun with the bad file still attached rendered nothing,
+            # indistinguishable from no upload at all.
+            upload_error = st.session_state.get("recomb.upload_error")
+            if upload_error:
+                st.error(upload_error)
 
     with mtab_manual:
         st.caption("Enter the recombination GOR/composition-summary and loading-cylinder inputs.")
