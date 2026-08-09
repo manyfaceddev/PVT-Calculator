@@ -1,6 +1,5 @@
 """tests/test_correlations.py — Standing (1947) bubble-point correlation."""
 
-import math
 import pytest
 from pvt.correlations.standing import bubble_point
 

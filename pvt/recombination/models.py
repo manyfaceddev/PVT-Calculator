@@ -80,7 +80,7 @@ class MultiStageResults:
     V_oil_charge:          float   # cc — oil volume at charging pressure
     V_oil_STO:             float   # cc — stock-tank oil equivalent
     # ── Gas volumes (separator stages + flash) ───────────────────────────────
-    stage_results:         list    # list[StageResult]
+    stage_results:         list[StageResult]
     total_V_gas_std_cc:    float   # cc @ std — all gas (sep stages + flash)
     total_V_gas_std_unit:  float   # scf or sm³ — all gas
     total_V_gas_recomb_cc: float   # cc @ recombination P & T — all gas

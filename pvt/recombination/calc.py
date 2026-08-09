@@ -40,7 +40,7 @@ are determined entirely from the GOR and recombination conditions:
 from pvt.constants import (
     P_STD_PSIA, T_STD_R,
     SCF_TO_CC, CC_TO_SM3, SCF_STB_TO_CC_CC,
-    BARA_TO_PSIA,
+    BARA_TO_PSIA, Units,
 )
 import math
 from pvt.recombination.models import (
@@ -118,7 +118,7 @@ def calculate_multistage(
     P_recomb:   float,
     T_recomb:   float,
     Z_recomb:   float,
-    units:      str,
+    units:      Units,
     oil_source: str   = "separator",  # "separator" | "stock_tank"
     FF:         float = 0.0,          # Flash Factor (scf/STB STO or sm³/sm³); Case 2 only
     p_charge:   float = 14.7,         # Oil charging pressure (psia or bara)

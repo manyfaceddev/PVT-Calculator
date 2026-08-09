@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pvt"
+version = "0.1.0"
+description = "ADRIC PVT laboratory platform engine"
+requires-python = ">=3.12"
+dependencies = [
+    "streamlit>=1.37.1,<2",
+    "openpyxl>=3.1,<4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+    "mypy>=1.10",
+]
+
+[tool.setuptools.packages.find]
+include = ["pvt*", "ui*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=pvt --cov-report=term-missing"
+
+[tool.coverage.run]
+branch = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_ignores = true
+disallow_untyped_defs = true
+packages = ["pvt"]
