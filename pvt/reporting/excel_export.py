@@ -136,6 +136,11 @@ def write_report(
 
     ws.column_dimensions["A"].width = 30
     ws.column_dimensions["B"].width = 20
-    ws.column_dimensions["C"].width = 16
+    # Widened from 16: QC Summary rows put the full check message in this
+    # column (pvt.reporting.tables._qc_rows), and messages like "Hoffman-
+    # Crump crossplot R²=0.9657 over 3 points (REVIEW)" were clipped at 16
+    # characters wide in Excel's default display (the stored value itself
+    # was never truncated, only its on-screen rendering).
+    ws.column_dimensions["C"].width = 50
 
     wb.save(path)

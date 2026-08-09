@@ -91,17 +91,46 @@ def calc_steps(steps: list[tuple[str, str]]) -> None:
             )
 
 
-def report_download(tables: list[ReportTable], sample: Sample, filename: str) -> None:
+def _derive_title(filename: str) -> str:
+    """Fallback report title derived from `filename`: strip any directory
+    prefix and extension, turn underscores into spaces, and Title-Case
+    (e.g. "flash_separation_report.xlsx" -> "Flash Separation Report")."""
+    stem = filename.rsplit("/", 1)[-1].rsplit(".", 1)[0].replace("_", " ").strip()
+    return stem.title() if stem else filename
+
+
+def _prefixed_filename(filename: str, sample_id: str) -> str:
+    """Embed `sample_id` into the front of `filename` (whitespace collapsed
+    to underscores) so reports downloaded for different samples don't share
+    a download name and silently clobber each other in a browser's
+    downloads folder."""
+    prefix = "_".join(sample_id.split()) or "sample"
+    return f"{prefix}_{filename}"
+
+
+def report_download(
+    tables: list[ReportTable], sample: Sample, filename: str, *, title: str | None = None
+) -> None:
     """Build an ADRIC-styled `.xlsx` report from `tables`/`sample` entirely
     in memory (`BytesIO`, via `pvt.reporting.excel_export.write_report`) and
-    offer it as an `st.download_button` named `filename`."""
-    title = filename.rsplit("/", 1)[-1].rsplit(".", 1)[0].replace("_", " ").strip()
+    offer it as an `st.download_button`.
+
+    Args:
+        tables: Report sections to write (see `write_report`).
+        sample: Sample metadata; `sample.sample_id` is also embedded into
+            the download filename (see `_prefixed_filename`).
+        filename: Base filename (e.g. "flash_separation_report.xlsx").
+        title: Report title shown in the workbook's navy header banner.
+            Defaults to `filename` Title-Cased (see `_derive_title`) when
+            not given.
+    """
+    report_title = title if title is not None else _derive_title(filename)
     buffer = BytesIO()
-    write_report(buffer, tables, title=title or filename, sample=sample)
+    write_report(buffer, tables, title=report_title, sample=sample)
     buffer.seek(0)
     st.download_button(
         "Download Excel Report",
         data=buffer,
-        file_name=filename,
+        file_name=_prefixed_filename(filename, sample.sample_id),
         mime=_XLSX_MIME,
     )

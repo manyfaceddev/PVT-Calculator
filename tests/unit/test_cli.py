@@ -55,6 +55,12 @@ def test_cli_recombine_single_stage_field_units(capsys):
     assert rc == 0
     assert "RESULTS REPORT" in out
     assert "Cylinder Mix Ratio" in out
+    # Demo-minor fix: the footer previously stated 14.696 psia (the
+    # gas-constant/psig->psia basis, P_ATM_PSIA) as "standard conditions",
+    # but this report's own volumetrics are on the lab's 14.73 psia basis
+    # (pvt.core.constants.P_STD_PSIA) -- the footer must say so.
+    assert "14.73 psia" in out
+    assert "14.696" not in out
 
 
 def test_cli_recombine_two_stage_missing_args_errors(capsys):

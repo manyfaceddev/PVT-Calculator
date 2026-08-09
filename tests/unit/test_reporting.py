@@ -311,6 +311,19 @@ def test_write_report_handles_missing_depth(tmp_path):
     assert "N/A" in flat
 
 
+def test_write_report_unit_column_wide_enough_for_qc_messages(tmp_path):
+    # Demo-minor fix: the QC Summary section's unit column carries the full
+    # check message (pvt.reporting.tables._qc_rows) -- must be wide enough
+    # that a realistic message isn't visually clipped to a handful of
+    # characters (the stored cell value is never truncated regardless, but
+    # the column must still be usable without manual resizing).
+    tables = [ReportTable("QC Summary", [ReportRow("hoffman_r2", "REVIEW", "message")])]
+    out = tmp_path / "width.xlsx"
+    write_report(out, tables, title="QC Report", sample=SAMPLE)
+    ws = openpyxl.load_workbook(out).active
+    assert ws.column_dimensions["C"].width >= 40
+
+
 def test_write_report_accepts_str_path(tmp_path):
     tables = [ReportTable("Flash Results", [ReportRow("GOR", "335.13", "scf/bbl")])]
     out = str(tmp_path / "str_path.xlsx")

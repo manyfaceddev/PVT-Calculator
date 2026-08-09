@@ -1,7 +1,9 @@
 import pytest
 from pvt.core.components import KATZ_FIROOZABADI as KF
 from pvt.core.composition import CompositionStream
+from pvt.core.exceptions import InputValidationError
 from pvt.qc.checks import composition_normalization, hoffman_crump, mw_consistency
+from pvt.qc.checks.hoffman_crump import HoffmanPoint
 from pvt.qc.engine import Severity, ThresholdRegistry
 from tests.fixtures import sa372
 
@@ -99,6 +101,61 @@ def test_hoffman_r2_review_band_three_component_fit():
     res_tight = hoffman_crump.check(gas, liquid, p_psia=355.0, t_f=55.4, registry=tight_registry)
     assert res_tight.r_squared == pytest.approx(res.r_squared)
     assert res_tight.qc.severity == Severity.FAIL
+
+
+def test_hoffman_crump_zero_qualifying_components_raises_typed_error():
+    # Review-round-2 finding: before the fix, fewer than 2 qualifying
+    # components (present, positive-mole-fraction, in BOTH streams) reached
+    # the least-squares fit's `x_bar = sum(xs) / n` with n=0, raising a raw
+    # ZeroDivisionError instead of a typed, actionable error.
+    gas = CompositionStream(library=KF, mol_pct={"C1": 100.0})
+    liquid = CompositionStream(library=KF, mol_pct={"C10": 100.0})
+    with pytest.raises(InputValidationError) as exc_info:
+        hoffman_crump.check(gas, liquid, p_psia=355.0, t_f=55.4)
+    message = str(exc_info.value).lower()
+    assert "at least 2" in message
+    assert "found 0" in message
+
+
+def test_hoffman_crump_one_qualifying_component_raises_typed_error():
+    # Same guard, n=1: the fit is still undetermined (a single point can't
+    # define a slope) -- also raised a raw ZeroDivisionError before the fix
+    # (n=1 makes ss_xx=0 downstream, dividing the slope by zero).
+    gas = CompositionStream(library=KF, mol_pct={"C1": 50.0, "C2": 50.0})
+    liquid = CompositionStream(library=KF, mol_pct={"C1": 50.0, "C10": 50.0})
+    with pytest.raises(InputValidationError) as exc_info:
+        hoffman_crump.check(gas, liquid, p_psia=355.0, t_f=55.4)
+    assert "found 1" in str(exc_info.value)
+
+
+def test_fit_least_squares_zero_ss_xx_raises_distinct_typed_error():
+    # n=2 (passes the < 2 guard) but both points share the same F-factor --
+    # ss_xx (the slope's denominator) is degenerate zero. Constructed
+    # directly against HoffmanPoint/_fit_least_squares since coaxing two
+    # different real KF components to share an F-factor exactly would
+    # require an contrived temperature search; this isolates the
+    # least-squares arithmetic itself.
+    points = [
+        HoffmanPoint(code="A", k=1.0, f_factor=1.0, log10_kp=1.0),
+        HoffmanPoint(code="B", k=1.0, f_factor=1.0, log10_kp=2.0),
+    ]
+    with pytest.raises(InputValidationError) as exc_info:
+        hoffman_crump._fit_least_squares(points)
+    assert "F-factor" in str(exc_info.value)
+
+
+def test_fit_least_squares_zero_ss_tot_raises_distinct_typed_error():
+    # n=2, distinct F-factors (ss_xx != 0, passes that guard), but both
+    # points share the same log10(K*P) -- ss_tot (R²'s denominator) is
+    # degenerate zero. A message distinct from the ss_xx case, per the
+    # brief.
+    points = [
+        HoffmanPoint(code="A", k=1.0, f_factor=1.0, log10_kp=5.0),
+        HoffmanPoint(code="B", k=1.0, f_factor=2.0, log10_kp=5.0),
+    ]
+    with pytest.raises(InputValidationError) as exc_info:
+        hoffman_crump._fit_least_squares(points)
+    assert "log10(K*P)" in str(exc_info.value)
 
 
 def test_mw_consistency_grades():

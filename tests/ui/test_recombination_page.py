@@ -26,8 +26,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from streamlit.runtime.uploaded_file_manager import UploadedFile, UploadedFileRec
 from streamlit.testing.v1 import AppTest
 
+from pvt.core.components import KATZ_FIROOZABADI as KF
 from pvt.experiments.recombination.molar import GorBasis, molar_split
 from ui.pages import recombination_page_logic
 
@@ -278,3 +280,112 @@ def test_volumetric_report_tables_builds_expected_sections() -> None:
     stage_table = tables[-1]
     assert len(stage_table.rows) == 1
     assert stage_table.rows[0].label == "Stage 1 (Separator) GOR"
+
+
+def test_wellstream_table_orders_by_kf_slot_not_alphabetically() -> None:
+    """Review-round finding: the wellstream table used to sort rows
+    alphabetically by Code, scattering "C10" between "C1" and "C2" and
+    putting "Benzene" ahead of every numbered light end. Must instead match
+    `KATZ_FIROOZABADI.codes`' slot order (the lab GC report's own layout)."""
+    ws_mol = {"C10": 5.0, "C1": 50.0, "Benzene": 2.0, "C2": 43.0}
+    df = recombination_page_logic.wellstream_table(ws_mol)
+    codes = list(df["Code"])
+    assert codes.index("C1") < codes.index("C10")
+    assert codes.index("C1") < codes.index("Benzene")
+    assert codes.index("C2") < codes.index("C10")
+    assert codes == [code for code in KF.codes if code in ws_mol]
+
+
+def test_upload_identity_prefers_file_id() -> None:
+    rec = UploadedFileRec(file_id="xyz", name="x.xlsx", type="application/xlsx", data=b"hello")
+    uploaded = UploadedFile(rec, None)
+    assert recombination_page_logic.upload_identity(uploaded) == "xyz"
+
+
+def _fake_uploaded_liveoil_workbook(file_id: str) -> UploadedFile:
+    data = WB.read_bytes()
+    rec = UploadedFileRec(file_id=file_id, name="liveoil.xlsx", type="application/xlsx", data=data)
+    return UploadedFile(rec, None)
+
+
+def test_molar_upload_reparse_gated_by_file_identity() -> None:
+    """Review-round finding, same as flash_page's upload branch: the molar
+    upload branch used to re-parse the workbook (and re-write
+    "recomb.molar_active", and re-pop "recomb.verify_result") on EVERY
+    script rerun while a file sat in the uploader, not just the run it was
+    newly attached on. Pre-seeding `session_state[widget_key]` with an
+    UploadedFile keeps the file "attached" across `.run()` calls exactly
+    like a real unrelated rerun (`st.file_uploader` itself isn't
+    AppTest-scriptable -- see module docstring)."""
+    at = AppTest.from_file(PAGE)
+    at.session_state["recomb.molar_uploaded_file"] = _fake_uploaded_liveoil_workbook("wb-1")
+    at.run()
+    assert not at.exception
+    assert len(at.success) == 1  # first attach -> parsed once
+
+    # Unrelated rerun, same file still attached -> must NOT re-parse.
+    at.run()
+    assert not at.exception
+    assert len(at.success) == 0
+
+    # A different file_id -> re-triggers the import.
+    at.session_state["recomb.molar_uploaded_file"] = _fake_uploaded_liveoil_workbook("wb-2")
+    at.run()
+    assert not at.exception
+    assert len(at.success) == 1
+
+
+def test_molar_upload_verify_pill_survives_unrelated_rerun_with_file_still_attached() -> None:
+    """The concrete symptom the file-identity gate fixes: without it, the
+    upload branch's `st.session_state.pop("recomb.verify_result", None)` ran
+    on every rerun the file remained attached -- including the very next,
+    completely unrelated one -- wiping the Actual-GOR QC pill moments after
+    the Verify form set it."""
+    at = AppTest.from_file(PAGE)
+    at.session_state["recomb.molar_uploaded_file"] = _fake_uploaded_liveoil_workbook("wb-1")
+    at.run()
+    assert not at.exception
+
+    at.number_input(key="recomb.verify_oil_cc").set_value(108.96)
+    at.number_input(key="recomb.verify_gas_cc").set_value(27.47)
+    at.button(key="recomb.verify_submit").click()
+    at.run()
+    assert not at.exception
+    assert "recomb.verify_result" in at.session_state
+    rendered = "\n".join(m.value for m in at.markdown)
+    assert "target 339.0" in rendered  # pill present, sanity check
+
+    # Unrelated rerun -- file remains attached, no new upload/verify action.
+    at.run()
+    assert not at.exception
+    assert "recomb.verify_result" in at.session_state  # pill must SURVIVE
+    rendered_after = "\n".join(m.value for m in at.markdown)
+    assert "target 339.0" in rendered_after
+
+
+def test_molar_upload_invalid_resubmit_clears_stale_active_and_verify_result() -> None:
+    """A new (different file_id) upload that fails validation must clear
+    both "recomb.molar_active" and "recomb.verify_result" rather than
+    leaving the previous, now-stale, results/pill rendered underneath the
+    new error."""
+    at = AppTest.from_file(PAGE)
+    at.session_state["recomb.molar_uploaded_file"] = _fake_uploaded_liveoil_workbook("wb-1")
+    at.run()
+    at.number_input(key="recomb.verify_oil_cc").set_value(108.96)
+    at.number_input(key="recomb.verify_gas_cc").set_value(27.47)
+    at.button(key="recomb.verify_submit").click()
+    at.run()
+    assert "recomb.molar_active" in at.session_state
+    assert "recomb.verify_result" in at.session_state
+
+    # A different (invalid -- wrong-template) file_id must clear both.
+    flash_wb = Path("tests/fixtures/workbooks/ADRIC_Flash_Separation_Calc_v6.1.xlsx")
+    rec = UploadedFileRec(
+        file_id="wb-bad", name="wrong.xlsx", type="application/xlsx", data=flash_wb.read_bytes()
+    )
+    at.session_state["recomb.molar_uploaded_file"] = UploadedFile(rec, None)
+    at.run()
+    assert not at.exception
+    assert len(at.error) >= 1
+    assert "recomb.molar_active" not in at.session_state
+    assert "recomb.verify_result" not in at.session_state

@@ -26,6 +26,8 @@ composition editor).
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pandas as pd
 import streamlit as st
 
@@ -48,6 +50,7 @@ from ui.pages.flash_page_logic import (
     read_uploaded_bytes,
     seed_composition_df,
     streams_from_composition_df,
+    upload_identity,
 )
 
 page_header(
@@ -63,18 +66,28 @@ with tab_upload:
         "Upload filled ADRIC Flash v6.1 template", type=["xlsx"], key="flash.uploaded_file"
     )
     if uploaded is not None:
-        try:
-            imp = read_uploaded_bytes(uploaded.getvalue())
-        except InputValidationError as exc:
-            st.error("; ".join(exc.errors))
-        else:
-            st.session_state["flash.active"] = {
-                "volumetrics": imp.volumetrics,
-                "oil_stream": imp.oil_stream,
-                "gas_stream": imp.gas_stream,
-                "sample": imp.sample,
-            }
-            st.success(f"Loaded {imp.sample.sample_id}.")
+        # Gate the parse + state write on file identity: st.file_uploader
+        # returns a non-None UploadedFile on EVERY script rerun while a file
+        # remains attached, not just the run it was newly attached on -- a
+        # naive "is not None" guard re-parses the workbook (and re-writes
+        # "flash.active") on every unrelated widget interaction elsewhere on
+        # the page. Only (re-)process when the attached file actually changes.
+        file_id = upload_identity(uploaded)
+        if file_id != st.session_state.get("flash.uploaded_file_id"):
+            st.session_state["flash.uploaded_file_id"] = file_id
+            try:
+                imp = read_uploaded_bytes(uploaded.getvalue())
+            except InputValidationError as exc:
+                st.session_state.pop("flash.active", None)
+                st.error("; ".join(exc.errors))
+            else:
+                st.session_state["flash.active"] = {
+                    "volumetrics": imp.volumetrics,
+                    "oil_stream": imp.oil_stream,
+                    "gas_stream": imp.gas_stream,
+                    "sample": imp.sample,
+                }
+                st.success(f"Loaded {imp.sample.sample_id}.")
 
 with tab_manual:
     st.caption("Mirrors the ADRIC Flash v6.1 Volumetrics_Master sheet.")
@@ -98,17 +111,32 @@ with tab_manual:
         "at zero to skip."
     )
     comp_df = st.data_editor(
-        seed_composition_df(), key="flash.composition_editor", num_rows="fixed"
+        seed_composition_df(),
+        key="flash.composition_editor",
+        num_rows="fixed",
+        column_config={
+            column: st.column_config.NumberColumn(min_value=0.0)
+            for column in ("Gas Mol%", "Gas Wt%", "Oil Mol%", "Oil Wt%")
+        },
     )
 
     if submitted:
         volumetrics = FlashVolumetrics(**values)
         errors = validate_flash(volumetrics)
+        oil_stream = gas_stream = None
+        if not errors:
+            try:
+                oil_stream, gas_stream = streams_from_composition_df(comp_df)
+            except InputValidationError as exc:
+                errors = exc.errors
+
         if errors:
+            # Invalid resubmit: clear any previously-rendered result rather
+            # than leaving it on screen underneath the new errors.
+            st.session_state.pop("flash.active", None)
             for error in errors:
                 st.error(error)
         else:
-            oil_stream, gas_stream = streams_from_composition_df(comp_df)
             st.session_state["flash.active"] = {
                 "volumetrics": volumetrics,
                 "oil_stream": oil_stream,
@@ -147,67 +175,83 @@ else:
 
         qc_results: list[QCResult] = []
         if oil_stream is not None and gas_stream is not None:
-            try:
-                qc_results = [
-                    composition_normalization.check(gas_stream, "mol"),
-                    composition_normalization.check(gas_stream, "wt"),
-                    composition_normalization.check(oil_stream, "mol"),
-                    composition_normalization.check(oil_stream, "wt"),
-                    mw_consistency.check(gas_stream),
-                    mw_consistency.check(oil_stream),
-                ]
-            except InputValidationError as exc:
-                st.warning("Composition QC skipped: " + "; ".join(exc.errors))
-            else:
-                st.markdown("**Composition QC**")
+            # Each check is run and appended independently: a mol-only
+            # manual-entry composition (no wt% at all) makes mw_consistency
+            # raise InputValidationError (it needs both bases) -- previously
+            # that one raise, from inside a single `[...]` list literal,
+            # discarded every OTHER check's result too, silently losing all
+            # composition QC (including Hoffmann-Crump, which only needs
+            # mol% and would otherwise have succeeded). A skipped check
+            # renders a small caption explaining why instead.
+            st.markdown("**Composition QC**")
+            checks: list[tuple[str, Callable[[], QCResult]]] = [
+                ("Gas mol% normalization",
+                 lambda: composition_normalization.check(gas_stream, "mol")),
+                ("Gas wt% normalization",
+                 lambda: composition_normalization.check(gas_stream, "wt")),
+                ("Oil mol% normalization",
+                 lambda: composition_normalization.check(oil_stream, "mol")),
+                ("Oil wt% normalization",
+                 lambda: composition_normalization.check(oil_stream, "wt")),
+                ("MW consistency (gas)", lambda: mw_consistency.check(gas_stream)),
+                ("MW consistency (oil)", lambda: mw_consistency.check(oil_stream)),
+            ]
+            for label, run_check in checks:
+                try:
+                    qc_results.append(run_check())
+                except InputValidationError as exc:
+                    st.caption(f"{label}: skipped — {'; '.join(exc.errors)}")
+            if qc_results:
                 qc_panel(qc_results)
 
-                st.markdown("**Hoffmann-Crump K-value Consistency**")
-                # Precheck: hoffman_crump.check's least-squares fit needs >=2
-                # "qualifying" components (positive mole fraction in BOTH
-                # streams) -- with fewer, its internal fit divides by n (0
-                # or 1 points) or by a degenerate ss_xx of 0, raising
-                # ZeroDivisionError rather than InputValidationError. A
-                # manual-entry composition with little/no overlap between
-                # the two streams (e.g. gas all C1, oil all C10) reaches
-                # this for real, not just in theory -- checked up front so
-                # it degrades to a warning instead of crashing the page.
-                if len(hoffman_overlap_codes(gas_stream, oil_stream)) < 2:
+            st.markdown("**Hoffmann-Crump K-value Consistency**")
+            # Precheck: hoffman_crump.check needs >=2 "qualifying"
+            # components (positive mole fraction in BOTH streams) -- with
+            # fewer, or a degenerate fit (all qualifying components sharing
+            # the same F-factor / log10(K*P)), it now raises a typed
+            # InputValidationError (engine-level guard) rather than a raw
+            # ZeroDivisionError. This precheck stays because it's still good
+            # UX (an upfront, specific warning) -- the `except
+            # InputValidationError` below is the backstop for every other
+            # case (including the degenerate-fit ones this precheck doesn't
+            # itself count); a manual-entry composition with little/no
+            # overlap between the two streams (e.g. gas all C1, oil all
+            # C10) reaches this for real, not just in theory. Hoffmann only
+            # needs a mol% basis, so it runs regardless of whether the
+            # wt%-dependent checks above were skipped.
+            if len(hoffman_overlap_codes(gas_stream, oil_stream)) < 2:
+                st.warning(
+                    "Hoffmann-Crump QC skipped: fewer than 2 components "
+                    "present in both streams."
+                )
+            else:
+                try:
+                    hoffman = hoffman_crump.check(
+                        gas_stream, oil_stream,
+                        p_psia=u.mbar_to_psia(volumetrics.gas_abs_pressure_mbar),
+                        t_f=u.c_to_f(volumetrics.gas_temp_c),
+                    )
+                except InputValidationError as exc:
                     st.warning(
-                        "Hoffmann-Crump QC skipped: fewer than 2 components "
-                        "present in both streams."
+                        "Hoffmann-Crump QC skipped: " + "; ".join(exc.errors)
                     )
                 else:
-                    try:
-                        hoffman = hoffman_crump.check(
-                            gas_stream, oil_stream,
-                            p_psia=u.mbar_to_psia(volumetrics.gas_abs_pressure_mbar),
-                            t_f=u.c_to_f(volumetrics.gas_temp_c),
+                    qc_results.append(hoffman.qc)
+                    qc_panel([hoffman.qc])
+                    if hoffman.points:
+                        fitted = [hoffman.slope * p.f_factor + hoffman.intercept
+                                  for p in hoffman.points]
+                        chart_df = pd.DataFrame(
+                            {
+                                "F": [p.f_factor for p in hoffman.points],
+                                "log10(K*P) (observed)": [p.log10_kp for p in hoffman.points],
+                                "log10(K*P) (fitted)": fitted,
+                            }
                         )
-                    except InputValidationError as exc:
-                        st.warning(
-                            "Hoffmann-Crump QC skipped: " + "; ".join(exc.errors)
+                        st.scatter_chart(
+                            chart_df, x="F",
+                            y=["log10(K*P) (observed)", "log10(K*P) (fitted)"],
                         )
-                    except ZeroDivisionError:
-                        # Backstop for the precheck above: degenerate fits
-                        # the overlap-count check doesn't catch (e.g. all
-                        # qualifying components sharing the same F-factor,
-                        # zeroing ss_xx in the least-squares fit).
-                        st.warning(
-                            "Hoffmann-Crump QC skipped: insufficient "
-                            "overlapping components for a stable fit."
-                        )
-                    else:
-                        qc_results.append(hoffman.qc)
-                        qc_panel([hoffman.qc])
-                        if hoffman.points:
-                            chart_df = pd.DataFrame(
-                                {
-                                    "F": [p.f_factor for p in hoffman.points],
-                                    "log10(K*P)": [p.log10_kp for p in hoffman.points],
-                                }
-                            )
-                            st.scatter_chart(chart_df, x="F", y="log10(K*P)")
 
         t_gas_k = volumetrics.gas_temp_c + 273.15
         steps = [

@@ -24,13 +24,17 @@ these functions directly without ever triggering that bare-mode execution.
 
 from __future__ import annotations
 
+import hashlib
+import math
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
 from pvt.core.components import KATZ_FIROOZABADI as KF
 from pvt.core.composition import CompositionStream
+from pvt.core.exceptions import InputValidationError
 from pvt.core.sample import Sample
 from pvt.io.excel_import import flash_v61
 
@@ -104,6 +108,28 @@ def seed_composition_df() -> pd.DataFrame:
     )
 
 
+def _clean_composition_cell(value: Any, label: str, code: str, errors: list[str]) -> float | None:
+    """Normalize one composition-editor cell to a `float`, or `None` when it
+    should be treated as absent.
+
+    `st.data_editor` hands back `float('nan')` for a cell the user cleared
+    (NaN is truthy in Python, so a naive `if value:` guard would silently
+    write it into the composition dict as-is, corrupting every downstream
+    sum). Dropped here, same treatment as a blank Excel-import cell (final
+    review carry-forward, mirroring `flash_v61._read_compositions`'s
+    None-guard). A negative value is collected into `errors` (mirroring that
+    same importer's negative-composition guard) rather than silently
+    accepted -- `CompositionStream` itself does not validate value sign.
+    """
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return None
+    value = float(value)
+    if value < 0:
+        errors.append(f"Composition editor ({code}): negative {label} value {value}")
+        return None
+    return value
+
+
 def streams_from_composition_df(
     df: pd.DataFrame,
 ) -> tuple[CompositionStream | None, CompositionStream | None]:
@@ -112,24 +138,32 @@ def streams_from_composition_df(
     non-zero cells become dict entries. A stream is `None` when none of its
     two columns (mol%/wt%) carry any non-zero entry -- "not entered" rather
     than "entered as an all-zero (invalid) composition".
+
+    Raises:
+        InputValidationError: any cell in the four composition columns is
+            negative -- lists every offending cell (mirroring the Excel
+            importers' import-boundary guard).
     """
     gas_mol: dict[str, float] = {}
     gas_wt: dict[str, float] = {}
     oil_mol: dict[str, float] = {}
     oil_wt: dict[str, float] = {}
+    errors: list[str] = []
     # dict records (not itertuples): "Gas Mol%" etc. aren't valid Python
     # identifiers, so itertuples silently renames them to positional `_1`,
     # `_2`, ... -- fragile to get right and to keep right under edits.
     for row in df[_COMPOSITION_COLUMNS].to_dict("records"):
         code = str(row["Code"])
-        if row["Gas Mol%"]:
-            gas_mol[code] = float(row["Gas Mol%"])
-        if row["Gas Wt%"]:
-            gas_wt[code] = float(row["Gas Wt%"])
-        if row["Oil Mol%"]:
-            oil_mol[code] = float(row["Oil Mol%"])
-        if row["Oil Wt%"]:
-            oil_wt[code] = float(row["Oil Wt%"])
+        for label, target in (
+            ("Gas Mol%", gas_mol), ("Gas Wt%", gas_wt),
+            ("Oil Mol%", oil_mol), ("Oil Wt%", oil_wt),
+        ):
+            value = _clean_composition_cell(row[label], label, code, errors)
+            if value:
+                target[code] = value
+
+    if errors:
+        raise InputValidationError(errors)
 
     oil_stream = (
         CompositionStream(library=KF, mol_pct=oil_mol, wt_pct=oil_wt)
@@ -167,6 +201,26 @@ def hoffman_overlap_codes(gas_stream: CompositionStream, oil_stream: Composition
     gas_mol = gas_stream.normalized_mol()
     oil_mol = oil_stream.normalized_mol()
     return {code for code, y in gas_mol.items() if y > 0 and oil_mol.get(code, 0.0) > 0}
+
+
+def upload_identity(uploaded_file: Any) -> str:
+    """Stable identity for an `st.file_uploader` return value, used to gate
+    the (re-)parse + session-state write to only run when the attached file
+    actually changes.
+
+    `st.file_uploader` returns a non-`None` `UploadedFile` on EVERY script
+    rerun while a file remains attached to the widget -- not just the run it
+    was newly attached on -- so a naive `if uploaded is not None:` guard
+    re-parses the workbook (and re-writes `st.session_state["flash.active"]`)
+    on every unrelated widget interaction elsewhere on the page. Prefers
+    Streamlit's own `file_id` (stable per attached file; changes when the
+    user detaches/reattaches or picks a different file); falls back to a
+    content hash for any uploaded-file-shaped object that doesn't carry one.
+    """
+    file_id = getattr(uploaded_file, "file_id", None)
+    if file_id:
+        return str(file_id)
+    return hashlib.sha256(uploaded_file.getvalue()).hexdigest()
 
 
 def read_uploaded_bytes(data: bytes) -> flash_v61.FlashImport:

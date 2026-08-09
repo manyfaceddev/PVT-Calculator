@@ -112,6 +112,15 @@ sheet-name presence alone.
 Import-boundary guard: any composition cell in rows 15-65 (col I) that reads
 as negative raises `InputValidationError`, same rationale as the Flash v6.1
 importer (Task 7) — `CompositionStream` itself does not validate value sign.
+
+Blank-cell guard (final review carry-forward): a blank/non-numeric
+composition cell (col I, rows 15-65) is treated as absent -- same as an
+explicit zero -- rather than crashing the `value < 0` sign check with a raw
+`TypeError` on `None`. A blank/non-numeric REQUIRED scalar cell (every cell
+read via `_num` -- recombination inputs, STO density/C36+ MW, loading
+inputs, sampling depth) is collected into an `InputValidationError` naming
+the cell address (e.g. "Recombination!B5 is blank or non-numeric") instead
+of crashing `float(None)`/`float("...")` with a raw `TypeError`/`ValueError`.
 """
 
 from dataclasses import dataclass
@@ -224,11 +233,14 @@ def read(path: str | Path) -> LiveOilImport:
             )
         _check_layout(wb)
 
-        c36_mw = _num(wb["STO_Composition"], "D65")
+        errors: list[str] = []
+        c36_mw = _num(wb["STO_Composition"], "D65", errors)
+        sto_density_60f = _num(wb["STO_Composition"], "B5", errors)
+        if errors:
+            raise InputValidationError(errors)
         library = KATZ_FIROOZABADI.with_c36_mw(c36_mw)
 
         gor, gor_basis, shrinkage, z_std = _read_recombination_inputs(wb["Recombination"])
-        sto_density_60f = _num(wb["STO_Composition"], "B5")
         sto_stream = _read_composition(wb["STO_Composition"], library)
         gas_stream = _read_composition(wb["Gas_Composition"], library)
         loading = _read_loading(wb["Loading_Volumes"])
@@ -261,43 +273,62 @@ def _check_layout(wb: Any) -> None:
         raise InputValidationError(errors)
 
 
-def _num(ws: Any, addr: str) -> float:
-    return float(ws[addr].value)
+def _num(ws: Any, addr: str, errors: list[str]) -> float:
+    """Read a REQUIRED numeric cell, appending to `errors` (and returning a
+    dummy 0.0, never used by a caller that raises on a non-empty `errors`)
+    instead of raising a raw TypeError/ValueError on a blank or non-numeric
+    cell."""
+    value = ws[addr].value
+    if not isinstance(value, int | float):
+        errors.append(f"{ws.title}!{addr} is blank or non-numeric")
+        return 0.0
+    return float(value)
 
 
 def _read_recombination_inputs(ws: Any) -> tuple[float, GorBasis, float, float]:
-    gor = _num(ws, "B5")
+    errors: list[str] = []
+    gor = _num(ws, "B5", errors)
     basis_text = str(ws["B6"].value)
     if basis_text not in _BASIS_MAP:
         raise InputValidationError(
             [f"Recombination!B6: unrecognized GOR basis {basis_text!r}"]
         )
     gor_basis = _BASIS_MAP[basis_text]
-    shrinkage = _num(ws, "B7")
-    z_std = _num(ws, "B12")
+    shrinkage = _num(ws, "B7", errors)
+    z_std = _num(ws, "B12", errors)
+    if errors:
+        raise InputValidationError(errors)
     return gor, gor_basis, shrinkage, z_std
 
 
 def _read_loading(ws: Any) -> LoadingInputs:
-    return LoadingInputs(
-        cylinder_volume_cc=_num(ws, "B5"),
-        target_oil_cc=_num(ws, "B6"),
-        oil_load_p_psig=_num(ws, "B7"),
-        oil_load_t_f=_num(ws, "B8"),
-        gas_load_p_psig=_num(ws, "B9"),
-        gas_load_t_f=_num(ws, "B10"),
-        z_gas_load=_num(ws, "B11"),
-        sto_density_at_load_g_cc=_num(ws, "B12"),
+    errors: list[str] = []
+    loading = LoadingInputs(
+        cylinder_volume_cc=_num(ws, "B5", errors),
+        target_oil_cc=_num(ws, "B6", errors),
+        oil_load_p_psig=_num(ws, "B7", errors),
+        oil_load_t_f=_num(ws, "B8", errors),
+        gas_load_p_psig=_num(ws, "B9", errors),
+        gas_load_t_f=_num(ws, "B10", errors),
+        z_gas_load=_num(ws, "B11", errors),
+        sto_density_at_load_g_cc=_num(ws, "B12", errors),
     )
+    if errors:
+        raise InputValidationError(errors)
+    return loading
 
 
 def _read_sample(ws: Any) -> Sample:
+    errors: list[str] = []
+    depth_ft_md = _num(ws, "B8", errors)
+    if errors:
+        raise InputValidationError(errors)
     return Sample(
         sample_id=str(ws["B7"].value),
         well=str(ws["B6"].value),
         field_name=str(ws["E5"].value),
         reservoir=str(ws["E6"].value),
-        depth_ft_md=_num(ws, "B8"),
+        depth_ft_md=depth_ft_md,
         fluid_type=str(ws["B9"].value),
         cylinder=str(ws["E7"].value),
         client=str(ws["B5"].value),
@@ -314,7 +345,10 @@ def _read_composition(ws: Any, library: ComponentLibrary) -> CompositionStream:
         code = _ALIAS.get(raw_code, raw_code)
         value = ws[f"I{row}"].value
 
-        if value < 0:
+        # A blank/non-numeric cell is treated as absent (same as an explicit
+        # zero, below) rather than crashing this sign check -- `None < 0`
+        # raises TypeError.
+        if isinstance(value, int | float) and value < 0:
             errors.append(f"{ws.title}!row {row} ({code}): negative Mol% value {value}")
 
         if value:

@@ -25,7 +25,6 @@ see that module's docstring for why the split is required, not cosmetic.
 
 from __future__ import annotations
 
-import pandas as pd
 import streamlit as st
 
 from pvt.core.exceptions import InputValidationError
@@ -42,7 +41,9 @@ from ui.common import calc_steps, metric_card, page_header, qc_panel, report_dow
 from ui.pages.recombination_page_logic import (
     MANUAL_SAMPLE,
     read_uploaded_liveoil_bytes,
+    upload_identity,
     volumetric_report_tables,
+    wellstream_table,
 )
 
 page_header(
@@ -235,43 +236,59 @@ with tab_molar:
             key="recomb.molar_uploaded_file",
         )
         if molar_uploaded is not None:
-            try:
-                molar_imp = read_uploaded_liveoil_bytes(molar_uploaded.getvalue())
-                molar_sto_mw = molar_imp.sto_stream.mw_from_mol()
-                molar_gas_mw = molar_imp.gas_stream.mw_from_mol()
-                molar_split_result = molar_split(
-                    molar_imp.gor, molar_imp.gor_basis, molar_imp.shrinkage,
-                    molar_imp.sto_density_60f, molar_sto_mw, molar_gas_mw,
-                    z_std=molar_imp.z_std,
-                )
-            except InputValidationError as exc:
-                st.error("; ".join(exc.errors))
-            except ZeroDivisionError:
-                # A malformed-but-structurally-valid workbook (e.g. shrinkage
-                # or z_std of 0.0 in the Recombination sheet's B7/B12) reaches
-                # molar_split's divisions rather than the importer's own
-                # negative-composition guard -- degrade rather than crash.
-                st.error(
-                    "Workbook values produce a division by zero (check shrinkage "
-                    "factor and Z at standard conditions are non-zero)."
-                )
-            else:
-                st.session_state["recomb.molar_active"] = {
-                    "split": molar_split_result,
-                    "sto_stream": molar_imp.sto_stream,
-                    "gas_stream": molar_imp.gas_stream,
-                    "sto_density_60f": molar_imp.sto_density_60f,
-                    "sto_mw": molar_sto_mw,
-                    "z_std": molar_imp.z_std,
-                    "loading": molar_imp.loading,
-                    "sample": molar_imp.sample,
-                }
-                # A new split invalidates any prior Actual-GOR QC pill -- it
-                # was graded against the OLD split's target GOR and would
-                # otherwise render (and export into the report) against this
-                # new one without ever having been re-verified.
-                st.session_state.pop("recomb.verify_result", None)
-                st.success(f"Loaded {molar_imp.sample.sample_id}.")
+            # Gate the parse + state write on file identity: st.file_uploader
+            # returns a non-None UploadedFile on EVERY script rerun while a
+            # file remains attached, not just the run it was newly attached
+            # on -- a naive "is not None" guard re-parses the workbook (and
+            # re-pops "recomb.verify_result") on every unrelated widget
+            # interaction elsewhere on the page, wiping the Actual-GOR QC
+            # pill moments after the Verify form set it. Only (re-)process
+            # when the attached file actually changes.
+            file_id = upload_identity(molar_uploaded)
+            if file_id != st.session_state.get("recomb.uploaded_file_id"):
+                st.session_state["recomb.uploaded_file_id"] = file_id
+                try:
+                    molar_imp = read_uploaded_liveoil_bytes(molar_uploaded.getvalue())
+                    molar_sto_mw = molar_imp.sto_stream.mw_from_mol()
+                    molar_gas_mw = molar_imp.gas_stream.mw_from_mol()
+                    molar_split_result = molar_split(
+                        molar_imp.gor, molar_imp.gor_basis, molar_imp.shrinkage,
+                        molar_imp.sto_density_60f, molar_sto_mw, molar_gas_mw,
+                        z_std=molar_imp.z_std,
+                    )
+                except InputValidationError as exc:
+                    st.session_state.pop("recomb.molar_active", None)
+                    st.session_state.pop("recomb.verify_result", None)
+                    st.error("; ".join(exc.errors))
+                except ZeroDivisionError:
+                    # A malformed-but-structurally-valid workbook (e.g. shrinkage
+                    # or z_std of 0.0 in the Recombination sheet's B7/B12) reaches
+                    # molar_split's divisions rather than the importer's own
+                    # negative-composition guard -- degrade rather than crash.
+                    st.session_state.pop("recomb.molar_active", None)
+                    st.session_state.pop("recomb.verify_result", None)
+                    st.error(
+                        "Workbook values produce a division by zero (check shrinkage "
+                        "factor and Z at standard conditions are non-zero)."
+                    )
+                else:
+                    st.session_state["recomb.molar_active"] = {
+                        "split": molar_split_result,
+                        "sto_stream": molar_imp.sto_stream,
+                        "gas_stream": molar_imp.gas_stream,
+                        "sto_density_60f": molar_imp.sto_density_60f,
+                        "sto_mw": molar_sto_mw,
+                        "z_std": molar_imp.z_std,
+                        "loading": molar_imp.loading,
+                        "sample": molar_imp.sample,
+                    }
+                    # A new split invalidates any prior Actual-GOR QC pill --
+                    # it was graded against the OLD split's target GOR and
+                    # would otherwise render (and export into the report)
+                    # against this new one without ever having been
+                    # re-verified.
+                    st.session_state.pop("recomb.verify_result", None)
+                    st.success(f"Loaded {molar_imp.sample.sample_id}.")
 
     with mtab_manual:
         st.caption("Enter the recombination GOR/composition-summary and loading-cylinder inputs.")
@@ -424,10 +441,7 @@ with tab_molar:
 
             st.markdown("**Wellstream Composition**")
             ws_mol = wellstream(split, sto_stream, gas_stream).normalized_mol()
-            ws_df = pd.DataFrame(
-                {"Code": list(ws_mol.keys()), "Mol%": [round(v, 4) for v in ws_mol.values()]}
-            ).sort_values("Code").reset_index(drop=True)
-            st.dataframe(ws_df)
+            st.dataframe(wellstream_table(ws_mol))
         else:
             st.info("Upload a LiveOil workbook to see the wellstream composition table.")
 

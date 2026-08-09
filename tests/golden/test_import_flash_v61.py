@@ -75,7 +75,8 @@ def _doctored_workbook(
     tmp_path: Path,
     *,
     header_cell: tuple[str, str] | None = None,
-    composition_override: tuple[int, str, float] | None = None,
+    composition_override: tuple[int, str, float | None] | None = None,
+    blank_cell: str | None = None,
 ) -> Path:
     """Build a minimal but structurally valid Volumetrics_Master workbook,
     in-memory, for negative-path tests that must not touch the real fixture
@@ -116,10 +117,14 @@ def _doctored_workbook(
     for i, code in enumerate(KF.codes):
         row = 41 + i
         ws[f"B{row}"] = code
-        ws[f"E{row}"] = 0
-        ws[f"F{row}"] = 0
-        ws[f"G{row}"] = 0
-        ws[f"H{row}"] = 0
+        # Row 0 seeded non-zero (not the row any current test blanks/negates)
+        # so a doctored workbook always yields a non-empty CompositionStream,
+        # even when a test blanks/negates one specific other row's cell.
+        seed = 50.0 if i == 0 else 0
+        ws[f"E{row}"] = seed
+        ws[f"F{row}"] = seed
+        ws[f"G{row}"] = seed
+        ws[f"H{row}"] = seed
 
     if header_cell is not None:
         addr, value = header_cell
@@ -127,6 +132,8 @@ def _doctored_workbook(
     if composition_override is not None:
         row_offset, col, value = composition_override
         ws[f"{col}{41 + row_offset}"] = value
+    if blank_cell is not None:
+        ws[blank_cell] = None
 
     path = tmp_path / "doctored.xlsx"
     wb.save(str(path))
@@ -144,3 +151,34 @@ def test_unexpected_header_rejected(tmp_path):
     path = _doctored_workbook(tmp_path, header_cell=("B40", "WRONG"))
     with pytest.raises(InputValidationError):
         read(path)
+
+
+def test_blank_composition_cell_is_treated_as_absent(tmp_path):
+    """A blank (None) composition cell must not crash the `value < 0` sign
+    check with a raw TypeError -- it is treated as absent, same as an
+    explicit zero, and the component is simply missing from that stream's
+    dict rather than blocking the import."""
+    path = _doctored_workbook(tmp_path, composition_override=(5, "G", None))
+    imp = read(path)
+    missing_code = KF.codes[5]
+    assert missing_code not in imp.oil_stream.mol_pct
+
+
+def test_blank_required_cell_raises_typed_error_naming_the_cell(tmp_path):
+    """A blank REQUIRED scalar cell (B14, v_sto_cc) must raise a typed
+    InputValidationError naming the exact cell address rather than crashing
+    `float(None)` with a raw TypeError."""
+    path = _doctored_workbook(tmp_path, blank_cell="B14")
+    with pytest.raises(InputValidationError) as exc_info:
+        read(path)
+    assert "Volumetrics_Master!B14" in str(exc_info.value)
+    assert "blank or non-numeric" in str(exc_info.value)
+
+
+def test_blank_sample_depth_cell_raises_typed_error(tmp_path):
+    """Same guard, covering _read_sample's own `_num` call (B7, sampling
+    depth) rather than _read_volumetrics's."""
+    path = _doctored_workbook(tmp_path, blank_cell="B7")
+    with pytest.raises(InputValidationError) as exc_info:
+        read(path)
+    assert "Volumetrics_Master!B7" in str(exc_info.value)

@@ -36,14 +36,17 @@ helpers it uses live in `flash_page_logic`, which has no top-level
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import pandas as pd
 import pytest
+from streamlit.runtime.uploaded_file_manager import UploadedFile, UploadedFileRec
 from streamlit.testing.v1 import AppTest
 
 from pvt.core.components import KATZ_FIROOZABADI as KF
 from pvt.core.composition import CompositionStream
+from pvt.core.exceptions import InputValidationError
 from pvt.experiments.flash.recombine import recombine_mass
 from tests.fixtures import sa372_flash as fx
 from tests.unit.experiments.test_flash_validate import SA372
@@ -204,6 +207,113 @@ def test_flash_page_hoffman_skipped_for_zero_overlap_composition() -> None:
     assert any("fewer than 2" in str(w.value).lower() for w in at.warning)
 
 
+def _seeded_df_with(overrides: dict[tuple[str, str], object]) -> pd.DataFrame:
+    """seed_composition_df() with a handful of (code, column) cells
+    overridden -- helper for the negative/NaN composition-editor tests
+    below."""
+    df = flash_page_logic.seed_composition_df()
+    for (code, column), value in overrides.items():
+        df.loc[df["Code"] == code, column] = value
+    return df
+
+
+def test_streams_from_composition_df_drops_nan_cells() -> None:
+    """`st.data_editor` hands back float('nan') for a cell the user
+    cleared; NaN is truthy in Python, so a naive `if value:` guard would
+    silently write it into the composition dict. Must be dropped -- the
+    component ends up absent, same as a genuinely blank/zero cell."""
+    df = _seeded_df_with({("C1", "Gas Mol%"): math.nan, ("C1", "Gas Wt%"): 50.0})
+    oil_stream, gas_stream = flash_page_logic.streams_from_composition_df(df)
+    assert gas_stream is not None
+    assert "C1" not in gas_stream.mol_pct
+    assert gas_stream.wt_pct is not None
+    assert gas_stream.wt_pct["C1"] == pytest.approx(50.0)
+
+
+def test_streams_from_composition_df_rejects_negative_values() -> None:
+    """A negative composition-editor cell must raise InputValidationError
+    naming the offending component/column, mirroring the Excel importers'
+    import-boundary guard, rather than silently being accepted."""
+    df = _seeded_df_with({("C1", "Oil Mol%"): -5.0})
+    with pytest.raises(InputValidationError) as exc_info:
+        flash_page_logic.streams_from_composition_df(df)
+    message = str(exc_info.value)
+    assert "C1" in message
+    assert "Oil Mol%" in message
+
+
+def test_upload_identity_prefers_file_id() -> None:
+    rec = UploadedFileRec(file_id="abc", name="x.xlsx", type="application/xlsx", data=b"hello")
+    uploaded = UploadedFile(rec, None)
+    assert flash_page_logic.upload_identity(uploaded) == "abc"
+
+
+def test_upload_identity_falls_back_to_content_hash_without_file_id() -> None:
+    class _FakeUpload:
+        def getvalue(self) -> bytes:
+            return b"same bytes"
+
+    identity_a = flash_page_logic.upload_identity(_FakeUpload())
+    identity_b = flash_page_logic.upload_identity(_FakeUpload())
+    assert identity_a == identity_b  # same bytes -> same fallback hash
+    assert len(identity_a) == 64  # sha256 hex digest
+
+
+def _fake_uploaded_flash_workbook(file_id: str) -> UploadedFile:
+    data = WB.read_bytes()
+    rec = UploadedFileRec(file_id=file_id, name="flash.xlsx", type="application/xlsx", data=data)
+    return UploadedFile(rec, None)
+
+
+def test_flash_upload_reparse_gated_by_file_identity() -> None:
+    """Review-round finding: the upload branch used to re-parse the
+    workbook (and re-write `flash.active`/render `st.success`) on EVERY
+    script rerun while a file sat in the uploader, not just the run it was
+    newly attached on. `st.file_uploader` isn't AppTest-scriptable, but
+    pre-seeding `session_state[widget_key]` with an UploadedFile works the
+    same way `.set_value()` does for other widgets -- the same file stays
+    "attached" across `.run()` calls exactly like a real unrelated rerun."""
+    at = AppTest.from_file("ui/pages/flash_page.py")
+    at.session_state["flash.uploaded_file"] = _fake_uploaded_flash_workbook("wb-1")
+    at.run()
+    assert not at.exception
+    assert len(at.success) == 1  # first attach -> parsed once
+
+    # Unrelated rerun, same file still attached -> must NOT re-parse.
+    at.run()
+    assert not at.exception
+    assert len(at.success) == 0
+
+    # A different file_id -> re-triggers the import.
+    at.session_state["flash.uploaded_file"] = _fake_uploaded_flash_workbook("wb-2")
+    at.run()
+    assert not at.exception
+    assert len(at.success) == 1
+
+
+def test_flash_manual_invalid_resubmit_clears_stale_results() -> None:
+    """Review-round finding: an invalid resubmit must clear the previously
+    rendered (valid) result rather than leaving it on screen underneath the
+    new errors."""
+    at = AppTest.from_file("ui/pages/flash_page.py").run()
+    for key, val in SA372_MANUAL_INPUTS.items():
+        at.number_input(key=key).set_value(val)
+    at.button[0].click()
+    at.run()
+    assert not at.exception
+    rendered = "\n".join(m.value for m in at.markdown)
+    assert "335.1" in rendered  # valid submit -> GOR card rendered
+
+    at.number_input(key="flash.pump_initial_cc").set_value(80.0)
+    at.number_input(key="flash.pump_final_cc").set_value(70.0)
+    at.button[0].click()
+    at.run()
+    assert not at.exception
+    assert len(at.error) >= 1
+    rendered_after = "\n".join(m.value for m in at.markdown)
+    assert "335.1" not in rendered_after  # stale GOR card must be gone
+
+
 def test_flash_page_hoffman_skipped_for_single_overlap_composition() -> None:
     """Exactly one component (C1) overlaps between the two streams -- still
     below the 2-point minimum for `hoffman_crump.check`'s least-squares fit
@@ -218,3 +328,25 @@ def test_flash_page_hoffman_skipped_for_single_overlap_composition() -> None:
     at = _run_with_active_streams(oil_stream, gas_stream)
     assert not at.exception
     assert any("fewer than 2" in str(w.value).lower() for w in at.warning)
+
+
+def test_mol_only_composition_still_renders_normalization_and_hoffmann() -> None:
+    """Review-round finding: a mol%-only manual composition (no wt% basis
+    at all) used to lose ALL composition QC -- mw_consistency.check raised
+    InputValidationError (it needs both bases) from inside a single `[...]`
+    list literal, discarding every other check's already-computed result,
+    including Hoffmann-Crump (which only needs mol%). Each check must now
+    run independently: the mol%-only composition still renders its
+    normalization pills and the Hoffmann section, with a caption explaining
+    why MW consistency was skipped, and no crash."""
+    gas_stream = CompositionStream(library=KF, mol_pct={"C1": 90.0, "C3": 10.0})
+    oil_stream = CompositionStream(library=KF, mol_pct={"C1": 20.0, "C3": 80.0})
+    at = _run_with_active_streams(oil_stream, gas_stream)
+    assert not at.exception
+    assert any("mw consistency" in str(cap.value).lower() for cap in at.caption)
+    assert any("skipped" in str(cap.value).lower() for cap in at.caption)
+    rendered = "\n".join(m.value for m in at.markdown)
+    assert "Composition QC" in rendered
+    assert "Hoffmann-Crump" in rendered
+    # Normalization pills (mol% is present) must still have rendered.
+    assert any("composition_sum" in str(m.value) for m in at.markdown)

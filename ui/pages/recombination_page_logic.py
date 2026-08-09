@@ -20,9 +20,14 @@ recombination_page.py` itself must only ever be reached via
 
 from __future__ import annotations
 
+import hashlib
 import tempfile
 from pathlib import Path
+from typing import Any
 
+import pandas as pd
+
+from pvt.core.components import KATZ_FIROOZABADI as KF
 from pvt.core.sample import Sample
 from pvt.experiments.recombination.models import MultiStageResults
 from pvt.io.excel_import import liveoil_v41
@@ -32,6 +37,32 @@ MANUAL_SAMPLE = Sample(
     sample_id="Manual Entry", well="", field_name="", reservoir="",
     depth_ft_md=None, fluid_type="", cylinder="",
 )
+
+_KF_SLOT_ORDER: dict[str, int] = {code: i for i, code in enumerate(KF.codes)}
+
+
+def upload_identity(uploaded_file: Any) -> str:
+    """Stable identity for an `st.file_uploader` return value. See
+    `ui.pages.flash_page_logic.upload_identity` (same rationale/behavior,
+    duplicated here rather than shared since each `*_page_logic` module is
+    otherwise self-contained) -- prefers `uploaded_file.file_id`, falling
+    back to a content hash for an uploaded-file-shaped object without one.
+    """
+    file_id = getattr(uploaded_file, "file_id", None)
+    if file_id:
+        return str(file_id)
+    return hashlib.sha256(uploaded_file.getvalue()).hexdigest()
+
+
+def wellstream_table(ws_mol: dict[str, float]) -> pd.DataFrame:
+    """Build the wellstream composition table, rows ordered by
+    `KATZ_FIROOZABADI.codes`' slot order (light ends first, matching the lab
+    GC report layout) rather than alphabetically -- plain alphabetical
+    sorting scatters "C10" between "C1" and "C2", and puts "Benzene" ahead
+    of every numbered light end.
+    """
+    codes = sorted(ws_mol.keys(), key=lambda code: _KF_SLOT_ORDER.get(code, len(_KF_SLOT_ORDER)))
+    return pd.DataFrame({"Code": codes, "Mol%": [round(ws_mol[code], 4) for code in codes]})
 
 
 def read_uploaded_liveoil_bytes(data: bytes) -> liveoil_v41.LiveOilImport:

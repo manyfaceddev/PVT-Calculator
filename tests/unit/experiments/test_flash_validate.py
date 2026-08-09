@@ -79,3 +79,18 @@ def test_gasometer_factor_zero():
     bad = dataclasses.replace(SA372, gasometer_factor=0.0)
     errors = validate(bad)
     assert any("gasometer_factor" in e.lower() or "factor" in e.lower() for e in errors)
+
+
+def test_flash_package_exports_calculate_and_recombine_mass():
+    # Demo-minor fix: pvt.experiments.flash's __init__ only re-exported
+    # FlashVolumetrics/FlashResults/validate -- callers had to reach into
+    # the calc/recombine submodules directly for the two functions that
+    # actually run the flash chain.
+    import pvt.experiments.flash as flash_pkg
+    from pvt.experiments.flash.calc import calculate
+    from pvt.experiments.flash.recombine import recombine_mass
+
+    assert flash_pkg.calculate is calculate
+    assert flash_pkg.recombine_mass is recombine_mass
+    assert "calculate" in flash_pkg.__all__
+    assert "recombine_mass" in flash_pkg.__all__

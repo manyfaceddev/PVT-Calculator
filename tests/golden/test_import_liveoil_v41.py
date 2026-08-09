@@ -93,9 +93,10 @@ def _doctored_workbook(
     tmp_path: Path,
     *,
     header_cell: tuple[str, str, str] | None = None,
-    composition_override: tuple[str, int, str, float] | None = None,
+    composition_override: tuple[str, int, str, float | None] | None = None,
     basis_text: str | None = None,
     omit_sheet: str | None = None,
+    blank_cell: tuple[str, str] | None = None,
 ) -> Path:
     """Build a minimal but structurally valid 5-sheet LiveOil workbook,
     in-memory, for negative-path tests that must not touch the real fixture
@@ -136,7 +137,11 @@ def _doctored_workbook(
             ws[f"B{row}"] = code
             ws[f"C{row}"] = code
             ws[f"D{row}"] = KF.get(code).mw
-            ws[f"I{row}"] = 0
+            # Row 15 (i=0) seeded non-zero (not the row any current test
+            # blanks/negates) so a doctored workbook always yields a
+            # non-empty CompositionStream, even when a test blanks/negates
+            # one specific other row's cell.
+            ws[f"I{row}"] = 50.0 if i == 0 else 0
         ws["D65"] = 635
 
     _composition_sheet(
@@ -173,6 +178,9 @@ def _doctored_workbook(
         wb[sheet_name][f"{col}{row}"] = value
     if omit_sheet is not None:
         wb.remove(wb[omit_sheet])
+    if blank_cell is not None:
+        sheet_name, addr = blank_cell
+        wb[sheet_name][addr] = None
 
     path = tmp_path / "doctored.xlsx"
     wb.save(str(path))
@@ -184,6 +192,55 @@ def test_negative_composition_rejected(tmp_path):
     with pytest.raises(InputValidationError) as exc_info:
         read(path)
     assert "negative" in str(exc_info.value).lower()
+
+
+def test_blank_composition_cell_is_treated_as_absent(tmp_path):
+    """A blank (None) composition cell must not crash the `value < 0` sign
+    check with a raw TypeError -- it is treated as absent, same as an
+    explicit zero, and the component is simply missing from that stream's
+    dict rather than blocking the import."""
+    path = _doctored_workbook(tmp_path, composition_override=("STO_Composition", 20, "I", None))
+    imp = read(path)
+    missing_code = [code for code in KF.codes if code != "TMB124"][5]
+    assert missing_code not in imp.sto_stream.mol_pct
+
+
+def test_blank_required_cell_raises_typed_error_naming_the_cell(tmp_path):
+    """A blank REQUIRED scalar cell (Recombination!B5, GOR) must raise a
+    typed InputValidationError naming the exact cell address rather than
+    crashing `float(None)` with a raw TypeError."""
+    path = _doctored_workbook(tmp_path, blank_cell=("Recombination", "B5"))
+    with pytest.raises(InputValidationError) as exc_info:
+        read(path)
+    assert "Recombination!B5" in str(exc_info.value)
+    assert "blank or non-numeric" in str(exc_info.value)
+
+
+def test_blank_sto_density_cell_raises_typed_error(tmp_path):
+    """Same guard, covering read()'s own combined c36_mw/sto_density_60f
+    `_num` reads (STO_Composition!B5) rather than _read_recombination_inputs's."""
+    path = _doctored_workbook(tmp_path, blank_cell=("STO_Composition", "B5"))
+    with pytest.raises(InputValidationError) as exc_info:
+        read(path)
+    assert "STO_Composition!B5" in str(exc_info.value)
+
+
+def test_blank_loading_cell_raises_typed_error(tmp_path):
+    """Same guard, covering _read_loading's own `_num` calls
+    (Loading_Volumes!B5, cylinder_volume_cc)."""
+    path = _doctored_workbook(tmp_path, blank_cell=("Loading_Volumes", "B5"))
+    with pytest.raises(InputValidationError) as exc_info:
+        read(path)
+    assert "Loading_Volumes!B5" in str(exc_info.value)
+
+
+def test_blank_sample_depth_cell_raises_typed_error(tmp_path):
+    """Same guard, covering _read_sample's own `_num` call
+    (Sample_Info!B8, sampling depth)."""
+    path = _doctored_workbook(tmp_path, blank_cell=("Sample_Info", "B8"))
+    with pytest.raises(InputValidationError) as exc_info:
+        read(path)
+    assert "Sample_Info!B8" in str(exc_info.value)
 
 
 def test_unexpected_header_rejected(tmp_path):

@@ -74,6 +74,15 @@ reads as negative raises `InputValidationError` — the Excel-import boundary
 is the right place to reject a malformed lab entry sheet, since
 `CompositionStream` itself does not validate value sign (P0 final-review
 carry-forward).
+
+Blank-cell guard (final review carry-forward): a blank/non-numeric
+composition cell (E-H, rows 41-92) is treated as absent -- same as an
+explicit zero -- rather than crashing the `value < 0` sign check with a raw
+`TypeError` on `None`. A blank/non-numeric REQUIRED scalar cell (every cell
+read via `_num` -- volumetrics inputs, sampling depth) is collected into an
+`InputValidationError` naming the cell address (e.g. "Volumetrics_Master!B14
+is blank or non-numeric") instead of crashing `float(None)`/`float("...")`
+with a raw `TypeError`/`ValueError`.
 """
 
 from dataclasses import dataclass
@@ -170,36 +179,52 @@ def _check_layout(ws: Any) -> None:
         raise InputValidationError(errors)
 
 
-def _num(ws: Any, addr: str) -> float:
-    return float(ws[addr].value)
+def _num(ws: Any, addr: str, errors: list[str]) -> float:
+    """Read a REQUIRED numeric cell, appending to `errors` (and returning a
+    dummy 0.0, never used by a caller that raises on a non-empty `errors`)
+    instead of raising a raw TypeError/ValueError on a blank or non-numeric
+    cell."""
+    value = ws[addr].value
+    if not isinstance(value, int | float):
+        errors.append(f"{ws.title}!{addr} is blank or non-numeric")
+        return 0.0
+    return float(value)
 
 
 def _read_volumetrics(ws: Any) -> FlashVolumetrics:
-    return FlashVolumetrics(
-        pump_constant=_num(ws, "B11"),
-        vcf=_num(ws, "E11"),
-        pump_initial_cc=_num(ws, "B12"),
-        pump_final_cc=_num(ws, "E12"),
-        v_sto_cc=_num(ws, "B14"),
-        oil_tare_g=_num(ws, "B15"),
-        oil_gross_g=_num(ws, "E15"),
-        gasometer_factor=_num(ws, "B17"),
-        gasometer_initial_cc=_num(ws, "B18"),
-        gasometer_final_cc=_num(ws, "E18"),
-        gas_temp_c=_num(ws, "B20"),
-        gas_abs_pressure_mbar=_num(ws, "B21"),
-        gas_gravity=_num(ws, "E21"),
+    errors: list[str] = []
+    volumetrics = FlashVolumetrics(
+        pump_constant=_num(ws, "B11", errors),
+        vcf=_num(ws, "E11", errors),
+        pump_initial_cc=_num(ws, "B12", errors),
+        pump_final_cc=_num(ws, "E12", errors),
+        v_sto_cc=_num(ws, "B14", errors),
+        oil_tare_g=_num(ws, "B15", errors),
+        oil_gross_g=_num(ws, "E15", errors),
+        gasometer_factor=_num(ws, "B17", errors),
+        gasometer_initial_cc=_num(ws, "B18", errors),
+        gasometer_final_cc=_num(ws, "E18", errors),
+        gas_temp_c=_num(ws, "B20", errors),
+        gas_abs_pressure_mbar=_num(ws, "B21", errors),
+        gas_gravity=_num(ws, "E21", errors),
     )
+    if errors:
+        raise InputValidationError(errors)
+    return volumetrics
 
 
 def _read_sample(ws: Any) -> Sample:
+    errors: list[str] = []
     well, _sep, field_name = str(ws["B6"].value).partition(" / ")
+    depth_ft_md = _num(ws, "B7", errors)
+    if errors:
+        raise InputValidationError(errors)
     return Sample(
         sample_id=str(ws["H5"].value),
         well=well,
         field_name=field_name,
         reservoir="",
-        depth_ft_md=_num(ws, "B7"),
+        depth_ft_md=depth_ft_md,
         fluid_type=str(ws["E8"].value),
         cylinder=str(ws["H6"].value),
         client=str(ws["B5"].value),
@@ -225,7 +250,10 @@ def _read_compositions(ws: Any) -> tuple[CompositionStream, CompositionStream]:
         for label, value in (
             ("Gas Mol%", gm), ("Gas Wt%", gw), ("Oil Mol%", om), ("Oil Wt%", ow)
         ):
-            if value < 0:
+            # A blank/non-numeric cell is treated as absent (same as an
+            # explicit zero, below) rather than crashing this sign check --
+            # `None < 0` raises TypeError.
+            if isinstance(value, int | float) and value < 0:
                 errors.append(
                     f"Volumetrics_Master!row {row} ({code}): negative {label} value {value}"
                 )

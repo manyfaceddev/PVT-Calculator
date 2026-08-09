@@ -338,7 +338,7 @@ def _run_recombine(args: argparse.Namespace) -> int:
 
     lines.append("")
     lines.append(_rule("="))
-    lines.append("  Standard conditions: 14.696 psia / 60 °F")
+    lines.append("  Standard conditions: 14.73 psia (lab basis) / 60 °F")
     lines.append("  Always verify with a qualified reservoir engineer.")
     lines.append(_rule("="))
 

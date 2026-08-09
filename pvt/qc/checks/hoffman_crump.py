@@ -38,6 +38,7 @@ from dataclasses import dataclass
 
 from pvt.core import units as u
 from pvt.core.composition import CompositionStream
+from pvt.core.exceptions import InputValidationError
 from pvt.qc.engine import QCResult, ThresholdRegistry, grade
 
 _CHECK_ID = "hoffman_r2"
@@ -113,6 +114,13 @@ def check(
     Returns:
         HoffmanResult with one point per qualifying component, the
         least-squares fit, and the graded R² QCResult.
+
+    Raises:
+        InputValidationError: fewer than 2 qualifying components (present,
+            with a positive mole fraction, in both streams), or a
+            degenerate fit (every qualifying component shares the same
+            F-factor or the same log10(K*P), zeroing the least-squares
+            fit's ss_xx/ss_tot denominator).
     """
     registry = registry or ThresholdRegistry()
 
@@ -162,8 +170,22 @@ def _fit_least_squares(points: list[HoffmanPoint]) -> tuple[float, float, float]
 
     Returns:
         (slope, intercept, r_squared).
+
+    Raises:
+        InputValidationError: fewer than 2 points (x_bar/y_bar would divide
+            by n=0, or the fit is undetermined with n=1), or a degenerate
+            fit -- every point sharing the same F-factor (ss_xx=0, the
+            slope's denominator) or the same log10(K*P) (ss_tot=0, the R²
+            denominator).
     """
     n = len(points)
+    if n < 2:
+        raise InputValidationError(
+            [
+                "Hoffmann-Crump QC needs at least 2 components present in "
+                f"both streams (found {n})"
+            ]
+        )
     xs = [p.f_factor for p in points]
     ys = [p.log10_kp for p in points]
     x_bar = sum(xs) / n
@@ -171,10 +193,24 @@ def _fit_least_squares(points: list[HoffmanPoint]) -> tuple[float, float, float]
 
     ss_xy = sum((x - x_bar) * (y - y_bar) for x, y in zip(xs, ys))
     ss_xx = sum((x - x_bar) ** 2 for x in xs)
+    if ss_xx == 0:
+        raise InputValidationError(
+            [
+                "Hoffmann-Crump QC: all qualifying components share the same "
+                "F-factor (degenerate fit, cannot compute a slope)"
+            ]
+        )
     slope = ss_xy / ss_xx
     intercept = y_bar - slope * x_bar
 
     ss_tot = sum((y - y_bar) ** 2 for y in ys)
+    if ss_tot == 0:
+        raise InputValidationError(
+            [
+                "Hoffmann-Crump QC: all qualifying components share the same "
+                "log10(K*P) (degenerate fit, cannot compute R²)"
+            ]
+        )
     ss_res = sum((y - (intercept + slope * x)) ** 2 for x, y in zip(xs, ys))
     r_squared = 1.0 - ss_res / ss_tot
 
