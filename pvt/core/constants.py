@@ -50,6 +50,9 @@ SCF_PER_LBMOL: Final[float] = 379.482
 FT3_PER_BBL: Final[float] = 5.61458
 """1 bbl = 5.61458 ft³ (barrel to cubic feet)."""
 
+CC_TO_SM3: Final[float] = 1e-6
+"""Volume conversion: 1 sm³ = 1,000,000 cc (standard cubic meters to cubic centimeters)."""
+
 SCF_STB_TO_CC_CC: Final[float] = CC_PER_SCF / CC_PER_STB
 """Ratio: scf per STB → cc per cc at standard conditions (≈ 0.178108)."""
 

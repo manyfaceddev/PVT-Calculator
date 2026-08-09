@@ -24,7 +24,7 @@ Nomenclature follows Carlsen & Whitson (IPTC-19775, 2020) and the Whitson manual
 """
 
 from dataclasses import dataclass
-from pvt.constants import Units
+from pvt.core.constants import Units
 
 
 # ===========================================================================

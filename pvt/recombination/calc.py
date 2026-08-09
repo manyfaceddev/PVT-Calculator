@@ -49,7 +49,7 @@ from pvt.recombination.models import (
 P_STD_PSIA = c.P_STD_PSIA
 T_STD_R = c.T_STD_R
 SCF_TO_CC = c.CC_PER_SCF
-CC_TO_SM3 = 1e-6  # 1 sm³ = 1,000,000 cc
+CC_TO_SM3 = c.CC_TO_SM3
 SCF_STB_TO_CC_CC = c.SCF_STB_TO_CC_CC
 BARA_TO_PSIA = c.PSIA_PER_BARA
 

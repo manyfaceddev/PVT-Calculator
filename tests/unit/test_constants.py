@@ -200,9 +200,8 @@ class TestLegacyPressureConversions:
 
 
 class TestLegacyVolumeConversionsCC_TO_SM3:
-    """Legacy: CC_TO_SM3 conversion (not in canonical set, but used in recombination)."""
+    """Legacy: CC_TO_SM3 conversion (now in canonical constants)."""
 
     def test_cc_to_sm3(self):
-        # 1 sm³ = 1,000,000 cc
-        CC_TO_SM3 = 1e-6
-        assert CC_TO_SM3 == pytest.approx(1e-6)
+        # 1 sm³ = 1,000,000 cc (canonical constant)
+        assert c.CC_TO_SM3 == pytest.approx(1e-6)
