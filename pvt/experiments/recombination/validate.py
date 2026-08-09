@@ -1,9 +1,9 @@
 """
-pvt/recombination/validate.py — Input validation for recombination calculations.
+pvt/experiments/recombination/validate.py — Input validation for recombination calculations.
 Returns lists of human-readable error strings; empty list means inputs are valid.
 """
 
-from pvt.recombination.models import SeparatorStage
+from pvt.experiments.recombination.models import SeparatorStage
 from pvt.core.constants import Units
 
 

@@ -25,7 +25,7 @@ include = ["pvt*", "ui*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=pvt --cov-report=term-missing"
+addopts = "--cov=pvt --cov-report=term-missing --cov-fail-under=100"
 
 [tool.coverage.run]
 branch = true

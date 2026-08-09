@@ -6,15 +6,17 @@ No UI dependencies; safe to import in scripts, tests, and CLIs.
 
 Modules
 -------
-pvt.constants           Physical constants and unit-conversion factors
-pvt.correlations        Empirical PVT correlations (Standing, etc.)
-pvt.recombination       Separator recombination calculations
+pvt.core                 Canonical constants, units, components, composition, exceptions
+pvt.correlations         Empirical PVT correlations (Standing bubble point, etc.)
+pvt.qc                   QC engine (severity grading, threshold registry)
+pvt.experiments          Laboratory experiment modules (recombination, ...)
 
 Planned modules
 ---------------
-pvt.pvt_cell            CCE, CVD, DL — PVT cell experiment calculations
-pvt.phase_envelope      Psat / Tsat / phase boundary calculations
-pvt.fluid_properties    Bo, GOR, Rs, Bg, viscosity correlations
+pvt.experiments.cce      Constant Composition Expansion
+pvt.experiments.cvd      Constant Volume Depletion
+pvt.io                   Excel / report ingestion
+pvt.reporting            Report generation
 """
 
 # Flat re-exports so existing code can do `from pvt import ...`
@@ -29,8 +31,8 @@ from pvt.constants import (
     CC_TO_SM3,
     Units,
 )
-from pvt.correlations.standing import bubble_point as standing_bubble_point
-from pvt.recombination import (
+from pvt.correlations.bubble_point import standing_bubble_point
+from pvt.experiments.recombination import (
     SeparatorStage,
     StageResult,
     MultiStageResults,

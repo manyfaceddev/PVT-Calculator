@@ -1,5 +1,5 @@
 """
-pvt/correlations/standing.py — Standing (1947) empirical correlations.
+pvt/correlations/bubble_point/standing.py — Standing (1947) empirical correlations.
 
 Reference: Standing, M.B. (1947). A Pressure-Volume-Temperature Correlation
 for Mixtures of California Oils and Gases. Drill. & Prod. Prac., API.

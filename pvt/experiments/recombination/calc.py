@@ -1,5 +1,5 @@
 """
-pvt/recombination/calc.py — Core calculation logic for separator recombination.
+pvt/experiments/recombination/calc.py — Core calculation logic for separator recombination.
 
 All inputs and outputs are in the units stated in the model docstrings.
 No UI or I/O logic here.
@@ -41,7 +41,7 @@ import math
 
 from pvt.core import constants as c
 from pvt.core.constants import Units
-from pvt.recombination.models import (
+from pvt.experiments.recombination.models import (
     SeparatorStage, StageResult, MultiStageResults,
 )
 

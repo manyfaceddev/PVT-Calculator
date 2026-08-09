@@ -3,7 +3,7 @@ ui/recombination.py — Streamlit page for separator fluid recombination.
 
 Entry point: call render() from app.py.
 Owns: session state, sidebar inputs, output layout.
-Does not contain: calculation logic (pvt.recombination) or CSS (ui.styles).
+Does not contain: calculation logic (pvt.experiments.recombination) or CSS (ui.styles).
 
 Two oil-source cases:
   Case 1 — Separator Oil + Separator Gas
@@ -14,8 +14,8 @@ import math
 import streamlit as st
 
 from pvt.constants import P_STD_PSIA, T_STD_F, T_STD_R, SCF_STB_TO_CC_CC, BARA_TO_PSIA
-from pvt.correlations.standing import bubble_point as standing_bubble_point
-from pvt.recombination import SeparatorStage, validate_multistage, calculate_multistage
+from pvt.correlations.bubble_point import standing_bubble_point
+from pvt.experiments.recombination import SeparatorStage, validate_multistage, calculate_multistage
 
 import ui.components as C
 

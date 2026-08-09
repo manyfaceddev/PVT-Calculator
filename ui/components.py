@@ -8,7 +8,7 @@ Keeping HTML construction here keeps page modules clean and makes styling
 changes easy to locate.
 """
 
-from pvt.recombination.models import MultiStageResults, StageResult, SeparatorStage
+from pvt import MultiStageResults, StageResult
 
 
 # ===========================================================================

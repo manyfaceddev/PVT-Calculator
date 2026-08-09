@@ -1,8 +1,8 @@
 """tests/test_recombination_validate.py — Input validation for recombination."""
 
 import pytest
-from pvt.recombination.models import SeparatorStage
-from pvt.recombination.validate import validate_multistage
+from pvt.experiments.recombination.models import SeparatorStage
+from pvt.experiments.recombination.validate import validate_multistage
 
 
 # ---------------------------------------------------------------------------
@@ -148,3 +148,35 @@ class TestGlobalErrors:
         stage  = SeparatorStage(R=-1, P=815, T=145, Z=5.0)
         errors = validate_multistage([stage], **valid_kwargs)
         assert len(errors) >= 2
+
+    def test_recomb_temperature_too_low_si(self):
+        stage  = SeparatorStage(R=151.4, P=55.8, T=62.8, Z=0.865)
+        errors = validate_multistage(
+            [stage],
+            V_live=300.0, SF=1.0, P_recomb=346.7, T_recomb=-100.0,
+            Z_recomb=0.82, units="si",
+        )
+        assert any("recomb" in e.lower() and "temperature" in e.lower() for e in errors)
+
+
+# ---------------------------------------------------------------------------
+# Case 2 (oil_source="stock_tank") — SF check is skipped; FF is validated
+# ---------------------------------------------------------------------------
+
+class TestStockTankCase:
+    def test_stock_tank_skips_sf_check(self, valid_stage):
+        """SF is meaningless for Case 2 — an out-of-range SF must not error."""
+        errors = validate_multistage(
+            [valid_stage],
+            V_live=300.0, SF=0.0, P_recomb=5014.7, T_recomb=200.0,
+            Z_recomb=0.82, units="field", oil_source="stock_tank", FF=60.0,
+        )
+        assert errors == []
+
+    def test_stock_tank_negative_ff_is_error(self, valid_stage):
+        errors = validate_multistage(
+            [valid_stage],
+            V_live=300.0, SF=1.0, P_recomb=5014.7, T_recomb=200.0,
+            Z_recomb=0.82, units="field", oil_source="stock_tank", FF=-10.0,
+        )
+        assert any("Flash Factor" in e or "FF" in e for e in errors)

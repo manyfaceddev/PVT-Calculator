@@ -18,8 +18,8 @@ Key invariants tested
 """
 
 import pytest
-from pvt.recombination.models import SeparatorStage
-from pvt.recombination.calc import calculate_multistage
+from pvt.experiments.recombination.models import SeparatorStage
+from pvt.experiments.recombination.calc import calculate_multistage
 from pvt.constants import SCF_STB_TO_CC_CC, BARA_TO_PSIA, P_STD_PSIA, T_STD_R
 
 
@@ -425,7 +425,7 @@ class TestOilCompressibility:
 #
 # Characterization tests: this branch had zero coverage before this test
 # class. Attribute names below are the real MultiStageResults / StageResult
-# fields (see pvt/recombination/models.py) — the calculate_multistage kwargs
+# fields (see pvt/experiments/recombination/models.py) — the calculate_multistage kwargs
 # match the dataclass field casing exactly (V_live, SF, FF, P_recomb,
 # T_recomb, Z_recomb), not the lowercase forms used elsewhere.
 # ---------------------------------------------------------------------------

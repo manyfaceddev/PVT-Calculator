@@ -1,5 +1,5 @@
 """
-pvt/recombination/models.py — Input / output data models for separator
+pvt/experiments/recombination/models.py — Input / output data models for separator
 recombination calculations.  Pure dataclasses; no calculation logic.
 
 Nomenclature follows Carlsen & Whitson (IPTC-19775, 2020) and the Whitson manual:
