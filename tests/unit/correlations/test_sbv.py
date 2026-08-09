@@ -4,13 +4,15 @@ from pvt.core.composition import CompositionStream
 from pvt.correlations.pseudocritical.sbv import pseudo_criticals
 
 def test_golden_equimolar_c1c2c3():
-    # GOLDEN: "Z factor calculation.xls" I5/I6 (SBV, sweet): the workbook's component table
-    # uses Tc(F)+460 and its own Tc/Pc values; with the KF library values the result differs
-    # in the 3rd decimal, so assert at 1e-3 relative. Using computed values from KF library.
+    # GOLDEN: "Z factor calculation.xls" I5/I6 (SBV, sweet). The workbook's own Tc/Pc table
+    # differs slightly from the KF library (D-001 canonization); measured deltas vs workbook:
+    # Tpc 7.5e-4, Ppc 1.36e-3 relative — tolerance 2e-3 absorbs the table difference while
+    # still failing on real formula regressions (the 1e-12 single-component identity test
+    # pins the algebra exactly).
     stream = CompositionStream(library=KF, mol_pct={"C1": 100/3, "C2": 100/3, "C3": 100/3})
     tpc, ppc = pseudo_criticals(stream)
-    assert tpc == pytest.approx(526.633380137499, rel=1e-3)
-    assert ppc == pytest.approx(675.542646488827, rel=1e-3)
+    assert tpc == pytest.approx(527.028947342463, rel=2e-3)
+    assert ppc == pytest.approx(676.464314208584, rel=2e-3)
 
 def test_single_component_recovers_own_criticals():
     stream = CompositionStream(library=KF, mol_pct={"C1": 100.0})
