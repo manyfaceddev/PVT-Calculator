@@ -73,6 +73,15 @@ class ThresholdRegistry:
     overridden per study, and every override is recorded in `.audit` with
     the caller-supplied note so the QC report can explain why a study's
     bands differ from house defaults.
+
+    "hoffman_r2" is the one exception: its (0.98, 0.95) pair is an R²-floor
+    threshold (see `pvt.qc.checks.hoffman_crump`'s module docstring for the
+    review/fail semantics and the deviation conversion its check performs).
+    Unlike the other entries, it is not transcribed from an ADRIC house
+    convention -- the source PVT-check sheets show the Hoffman-Crump
+    crossplot visually, with no numeric R² gate of their own -- so this
+    default is proposed by engineering judgment, configurable via
+    `override`, pending Swej calibration.
     """
 
     DEFAULTS: dict[str, tuple[float, float]] = {
@@ -85,6 +94,7 @@ class ThresholdRegistry:
         "mmp_mass_balance_pct": (5.0, 5.0),
         "gor_actual_vs_target_pct": (5.0, 10.0),
         "mw_consistency_pct": (5.0, 10.0),
+        "hoffman_r2": (0.98, 0.95),
     }
 
     def __init__(self) -> None:
