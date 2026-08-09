@@ -2,7 +2,7 @@ import pytest
 from pvt.core.components import KATZ_FIROOZABADI as KF
 from pvt.core.composition import CompositionStream
 from pvt.qc.checks import composition_normalization, hoffman_crump, mw_consistency
-from pvt.qc.engine import Severity
+from pvt.qc.engine import Severity, ThresholdRegistry
 from tests.fixtures import sa372
 
 
@@ -56,6 +56,49 @@ def test_hoffman_crump_excludes_missing_and_nonpositive_components():
     codes = {p.code for p in res.points}
     assert codes == {"C1", "C3"}
     assert res.qc.check_id == "hoffman_r2"
+
+
+def test_hoffman_r2_review_band_three_component_fit():
+    # Not part of the brief's golden set: review-round-1 finding -- the
+    # hoffman_r2 R^2-floor -> grade() conversion was only ever exercised at
+    # r_squared=1.0 (both golden tests), where a regressed/flipped
+    # conversion would also pass. This test lands the fit at a KNOWN
+    # imperfect R^2, with margin from both band edges, so the conversion's
+    # arithmetic (not just its "perfect fit -> PASS" happy path) is checked.
+    #
+    # OFFLINE derivation (see task-6-report.md "Fix: hoffman_r2 band
+    # coverage" for the full search): start from the two-point golden's
+    # exact-fit line (C1 y=90/x=20, C3 y=10/x=80 -> K=4.5/0.125, which sit
+    # exactly on a line by construction, same as test_hoffman_r2_perfect_
+    # for_two_points). Add a third component, nC5, deliberately off that
+    # line -- nC5 is heavy (low volatility), so a K far below what the C1/C3
+    # line predicts at nC5's F-factor pulls the least-squares R^2 down from
+    # 1.0. mol_pct={"C1": 90.0, "C3": 10.0, "nC5": 0.2} (gas) /
+    # {"C1": 20.0, "C3": 80.0, "nC5": 5.6} (liquid) at p=355 psia, t=55.4F
+    # was found by a small grid/line search (varying only the nC5 liquid
+    # fraction) to give r_squared = 0.9656953264177762 -- independently
+    # confirmed by calling this module directly during the search, not just
+    # derived by hand. That value sits inside [0.95, 0.98) with margin from
+    # both edges (~0.016 above the 0.95 floor, ~0.014 below the 0.98 floor),
+    # i.e. deviation = 1 - r_squared = 0.03430 sits strictly between the
+    # default band's review_at=1-0.98=0.02 and fail_at=1-0.95=0.05 ->
+    # REVIEW.
+    gas = CompositionStream(library=KF, mol_pct={"C1": 90.0, "C3": 10.0, "nC5": 0.2})
+    liquid = CompositionStream(library=KF, mol_pct={"C1": 20.0, "C3": 80.0, "nC5": 5.6})
+    res = hoffman_crump.check(gas, liquid, p_psia=355.0, t_f=55.4)
+    assert res.r_squared == pytest.approx(0.9656953264177762, abs=1e-9)
+    assert res.qc.severity == Severity.REVIEW
+
+    # Same imperfect fit, but with hoffman_r2 overridden to a much tighter
+    # R^2-floor pair (0.999, 0.998) -> review_at=1-0.999=0.001,
+    # fail_at=1-0.998=0.002, both far below the fit's actual deviation
+    # (0.0343) -> FAIL. This exercises override-driven severity (not just
+    # the house-default band) with the same r_squared as above.
+    tight_registry = ThresholdRegistry()
+    tight_registry.override("hoffman_r2", 0.999, 0.998, note="test: force FAIL on an imperfect fit")
+    res_tight = hoffman_crump.check(gas, liquid, p_psia=355.0, t_f=55.4, registry=tight_registry)
+    assert res_tight.r_squared == pytest.approx(res.r_squared)
+    assert res_tight.qc.severity == Severity.FAIL
 
 
 def test_mw_consistency_grades():
