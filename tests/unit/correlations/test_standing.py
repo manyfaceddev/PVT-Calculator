@@ -77,20 +77,30 @@ class TestBubblePointFormula:
 
 class TestBubblePointEdgeCases:
     def test_zero_gor_returns_zero(self):
-        assert bubble_point(0, 0.72, 35, 145) == 0.0
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            assert bubble_point(0, 0.72, 35, 145) == 0.0
 
     def test_negative_gor_returns_zero(self):
-        assert bubble_point(-100, 0.72, 35, 145) == 0.0
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            assert bubble_point(-100, 0.72, 35, 145) == 0.0
 
     def test_zero_gamma_g_returns_zero(self):
-        assert bubble_point(850, 0, 35, 145) == 0.0
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            assert bubble_point(850, 0, 35, 145) == 0.0
 
     def test_negative_gamma_g_returns_zero(self):
-        assert bubble_point(850, -0.5, 35, 145) == 0.0
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            assert bubble_point(850, -0.5, 35, 145) == 0.0
 
     def test_result_is_non_negative(self):
         # Very heavy oil + very low GOR could give negative from raw formula
-        assert bubble_point(1, 0.9, 10, 60) >= 0.0
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always")
+            assert bubble_point(1, 0.9, 10, 60) >= 0.0
 
 
 class TestBubblePointPhysicalTrends:
