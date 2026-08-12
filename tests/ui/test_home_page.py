@@ -13,6 +13,7 @@ module -- see its docstring).
 
 from __future__ import annotations
 
+from tests.ui._paths import repo_file
 from streamlit.testing.v1 import AppTest
 
 from ui.pages import home_page_logic
@@ -21,7 +22,7 @@ from ui.pages import home_page_logic
 def test_home_page_boots_and_renders_banner() -> None:
     """Standalone boot (not just via the navigation shell): the gradient
     welcome banner's title and one-line subtitle render."""
-    at = AppTest.from_file("ui/pages/home_page.py").run()
+    at = AppTest.from_file(repo_file("ui/pages/home_page.py")).run()
     assert not at.exception
     rendered = "\n".join(m.value for m in at.markdown)
     assert "ADRIC PVT Platform" in rendered
@@ -32,7 +33,7 @@ def test_home_page_renders_live_module_cards() -> None:
     """Both live modules (Flash Separation, Recombination / Live Oil) show
     up as titled cards with an "Open" button -- one per `LIVE_MODULES`
     entry."""
-    at = AppTest.from_file("ui/pages/home_page.py").run()
+    at = AppTest.from_file(repo_file("ui/pages/home_page.py")).run()
     assert not at.exception
     rendered = "\n".join(m.value for m in at.markdown)
     for module in home_page_logic.LIVE_MODULES:
@@ -46,7 +47,7 @@ def test_home_page_renders_roadmap_cards_as_coming_soon() -> None:
     """Every Phase 3/4 roadmap module renders, grayed out, labeled "Coming
     soon" with its target phase -- no fabricated stats, just the honest
     roadmap from the design spec."""
-    at = AppTest.from_file("ui/pages/home_page.py").run()
+    at = AppTest.from_file(repo_file("ui/pages/home_page.py")).run()
     assert not at.exception
     rendered = "\n".join(m.value for m in at.markdown)
     for roadmap in home_page_logic.ROADMAP_MODULES:
@@ -58,7 +59,7 @@ def test_home_page_renders_roadmap_cards_as_coming_soon() -> None:
 def test_home_page_stat_tiles_show_computed_counts() -> None:
     """The "Platform status" row's three stat tiles show
     `home_page_logic`'s actual computed counts, not hardcoded numbers."""
-    at = AppTest.from_file("ui/pages/home_page.py").run()
+    at = AppTest.from_file(repo_file("ui/pages/home_page.py")).run()
     assert not at.exception
     rendered = "\n".join(m.value for m in at.markdown)
     assert str(home_page_logic.count_import_templates()) in rendered
@@ -71,7 +72,7 @@ def test_home_page_open_button_switches_to_flash_page() -> None:
     `st.switch_page` (only invoked on click, not at render time -- see
     `home_page.py`'s module docstring for why that matters for a standalone
     `AppTest` run) and lands on the Flash Separation page."""
-    at = AppTest.from_file("app.py").run()
+    at = AppTest.from_file(repo_file("app.py")).run()
     assert not at.exception
     at.button(key="home-open-flash").click().run()
     assert not at.exception

@@ -27,6 +27,7 @@ from pathlib import Path
 
 import pytest
 from streamlit.runtime.uploaded_file_manager import UploadedFile, UploadedFileRec
+from tests.ui._paths import repo_file
 from streamlit.testing.v1 import AppTest
 
 from pvt.core.components import KATZ_FIROOZABADI as KF
@@ -35,7 +36,7 @@ from ui.pages import recombination_page_logic
 
 WB = Path("tests/fixtures/workbooks/ADRIC_LiveOil_Preparation_Calc_v4.1.xlsx")
 
-PAGE = "ui/pages/recombination_page.py"
+PAGE = repo_file("ui/pages/recombination_page.py")
 
 
 def test_recombination_page_boots_without_exception() -> None:

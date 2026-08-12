@@ -44,6 +44,7 @@ import pandas as pd
 import pytest
 from openpyxl import Workbook
 from streamlit.runtime.uploaded_file_manager import UploadedFile, UploadedFileRec
+from tests.ui._paths import repo_file
 from streamlit.testing.v1 import AppTest
 
 from pvt.core.components import KATZ_FIROOZABADI as KF
@@ -70,7 +71,7 @@ def test_flash_page_manual_flow() -> None:
     """Brief's Step-1 test, verbatim: fill the manual form with SA-372
     numbers, submit, and confirm the GOR metric card renders "335.1"
     (r.gor_scf_bbl == 335.13, golden per tests/golden/test_flash_sa372.py)."""
-    at = AppTest.from_file("ui/pages/flash_page.py").run()
+    at = AppTest.from_file(repo_file("ui/pages/flash_page.py")).run()
     assert not at.exception
     for key, val in SA372_MANUAL_INPUTS.items():
         at.number_input(key=key).set_value(val)
@@ -83,7 +84,7 @@ def test_flash_page_manual_flow() -> None:
 def test_flash_page_boots_without_exception() -> None:
     """Standalone boot: both tabs' widgets (upload + manual form) instantiate
     without raising, before any user interaction."""
-    at = AppTest.from_file("ui/pages/flash_page.py").run()
+    at = AppTest.from_file(repo_file("ui/pages/flash_page.py")).run()
     assert not at.exception
     rendered = "\n".join(m.value for m in at.markdown)
     assert "Flash Separation" in rendered
@@ -95,7 +96,7 @@ def test_flash_page_boots_without_exception() -> None:
 def test_flash_page_manual_flow_invalid_inputs_shows_error() -> None:
     """An invalid manual entry (pump_final <= pump_initial) surfaces
     validate.py's error via st.error rather than raising/crashing the page."""
-    at = AppTest.from_file("ui/pages/flash_page.py").run()
+    at = AppTest.from_file(repo_file("ui/pages/flash_page.py")).run()
     at.number_input(key="flash.pump_initial_cc").set_value(80.0)
     at.number_input(key="flash.pump_final_cc").set_value(70.0)
     at.button[0].click()
@@ -165,7 +166,7 @@ def _run_with_active_streams(
     here because `st.data_editor` isn't AppTest-scriptable (see module
     docstring) -- this is the only way to reach the composition-QC/Hoffmann
     branch with an arbitrary, precisely-controlled composition."""
-    at = AppTest.from_file("ui/pages/flash_page.py")
+    at = AppTest.from_file(repo_file("ui/pages/flash_page.py"))
     at.session_state["flash.active"] = {
         "volumetrics": SA372,
         "oil_stream": oil_stream,
@@ -286,7 +287,7 @@ def test_flash_upload_reparse_gated_by_file_identity() -> None:
     pre-seeding `session_state[widget_key]` with an UploadedFile works the
     same way `.set_value()` does for other widgets -- the same file stays
     "attached" across `.run()` calls exactly like a real unrelated rerun."""
-    at = AppTest.from_file("ui/pages/flash_page.py")
+    at = AppTest.from_file(repo_file("ui/pages/flash_page.py"))
     at.session_state["flash.uploaded_file"] = _fake_uploaded_flash_workbook("wb-1")
     at.run()
     assert not at.exception
@@ -311,7 +312,7 @@ def test_flash_upload_error_persists_across_unrelated_rerun() -> None:
     attached rendered nothing at all, indistinguishable from no upload.
     The error must now be cached and re-rendered on every run while the
     identity is unchanged, and cleared once a good file replaces it."""
-    at = AppTest.from_file("ui/pages/flash_page.py")
+    at = AppTest.from_file(repo_file("ui/pages/flash_page.py"))
     at.session_state["flash.uploaded_file"] = _fake_uploaded_bad_workbook("bad-1")
     at.run()
     assert not at.exception
@@ -335,7 +336,7 @@ def test_flash_manual_invalid_resubmit_clears_stale_results() -> None:
     """Review-round finding: an invalid resubmit must clear the previously
     rendered (valid) result rather than leaving it on screen underneath the
     new errors."""
-    at = AppTest.from_file("ui/pages/flash_page.py").run()
+    at = AppTest.from_file(repo_file("ui/pages/flash_page.py")).run()
     for key, val in SA372_MANUAL_INPUTS.items():
         at.number_input(key=key).set_value(val)
     at.button[0].click()
