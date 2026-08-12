@@ -179,18 +179,58 @@ strategy (Section 8):
    the engine's correct value at the exact point it deliberately departs
    from a source workbook.
 
-### CI and the lint/type-check gate
+### Continuous integration & releases
 
 `.github/workflows/ci.yml` runs on every push to `main`/`feature/**` and on
-every pull request into `main`, on `ubuntu-latest` with Python 3.12:
+every pull request into `main`. Its `test` job runs the same five steps as
+below, on a **matrix of two Python versions, `3.12` and `3.14`**
+(`fail-fast: false`, so one version failing doesn't hide results from the
+other):
 
 ```yaml
-- run: pip install -e ".[dev]"
+- run: pip install -e ".[dev]"    # fresh dependency resolve, not a lockfile install
 - run: ruff check pvt tests ui app.py cli.py
 - run: mypy pvt
 - run: pytest
 - run: python -c "import pvt, ui, cli"
 ```
+
+The install step is a deliberate, un-pinned `pip install -e ".[dev]"` on
+every run rather than a cached/locked install: it re-resolves the full
+dependency tree from `pyproject.toml`'s version floors every time, on both
+supported interpreters. This is the project's early-warning system for
+dependency drift — a newly released `streamlit` or `pandas` version, for
+example, breaking the suite on one Python version while an older, already-
+installed environment on a developer's machine stays green. The actual
+CI/lint/test steps are defined once, in a reusable workflow
+(`.github/workflows/reusable-test.yml`), and called with a specific Python
+version by both `ci.yml` (matrixed) and `release.yml` (pinned to `3.12`),
+so the two workflows can never define "passing" differently.
+
+A second job, `docs-smoke`, guards the documentation build path on every
+push/PR without needing a multi-hundred-MB LaTeX install: it regenerates
+the manual's figures (`python scripts/make_figures.py`) and converts the
+title page plus all eleven chapters to LaTeX source via `pandoc` only
+(`scripts/manual_to_tex.sh`, sharing chapter discovery with
+`scripts/build_manual.sh` through `scripts/manual_chapters.sh`), catching a
+missing/renamed chapter file or broken Pandoc Markdown before it reaches a
+release build. Both jobs run under a `concurrency` group keyed on branch/PR,
+with `cancel-in-progress` only for pull-request pushes, so a fast-follow
+commit on a PR cancels its predecessor's run while every push to `main`
+still gets an uncancelled run.
+
+`.github/workflows/release.yml` runs on every pushed tag matching `v*`. It
+re-runs the full `3.12` test gate, then — only if that passes — builds the
+manual PDF (`scripts/build_manual.sh`, with `PVT_MANUAL_MAINFONT`/
+`PVT_MANUAL_MONOFONT` overridden to Ubuntu-available fonts, since the
+project's local defaults, Times New Roman / Menlo, aren't installed on the
+`ubuntu-latest` runner) and both offline install bundles (Linux and
+`win_amd64`, via `scripts/make_offline_bundle.sh`, zipped). It then
+publishes a GitHub Release for that tag with the manual PDF and both
+bundle `.zip` files attached. **To download a released build: open the
+repository's Releases page and pick the tag** — no need to run any script
+locally unless you want a bundle for a platform the release doesn't
+already cover (see §2.7 below).
 
 There is no `pytest -W error` flag or `filterwarnings` configuration in
 this repository (none was found in `pyproject.toml` or elsewhere); the
@@ -239,7 +279,9 @@ python3 -c "import pvt, ui, cli"           # import-smoke, matches the CI step
 | `app.py` | Streamlit entry point (root of the repository, not under `ui/`). |
 | `cli.py` | Command-line interface (`recombine`, `flash` subcommands). |
 | `pyproject.toml` | Packaging, `pytest`/coverage, `ruff`, and `mypy` configuration. |
-| `.github/workflows/ci.yml` | CI pipeline: `ruff check`, `mypy`, `pytest`, import-smoke. |
+| `.github/workflows/ci.yml` | CI: `test` job (matrix `3.12`/`3.14`) — `ruff check`, `mypy`, `pytest`, import-smoke; plus a `docs-smoke` job. |
+| `.github/workflows/reusable-test.yml` | The shared test job body, called by both `ci.yml` and `release.yml`. |
+| `.github/workflows/release.yml` | On tag push `v*`: re-runs the test gate, builds the manual PDF and offline bundles, publishes a GitHub Release. |
 
 ## 2.7 Offline Installation (Locked-Down PC)
 

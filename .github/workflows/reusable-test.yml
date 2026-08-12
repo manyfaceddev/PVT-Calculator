@@ -1,0 +1,49 @@
+name: Reusable / Test
+
+# Shared test job: fresh dependency resolve, lint, type-check, coverage-gated
+# pytest, import smoke. Called with a single Python version by both ci.yml
+# (matrixed across the supported versions) and release.yml (pinned to the
+# release gate version), so the two workflows can never drift apart on what
+# "passing" means.
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: "Python version to run the test job with (e.g. '3.12')."
+        required: true
+        type: string
+
+jobs:
+  test:
+    name: test (py${{ inputs.python-version }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ inputs.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # Deliberately a fresh resolve, not a locked/pinned install: this is
+      # the early-warning signal for dependency drift (e.g. a new streamlit
+      # or pandas release breaking the suite on a given Python version)
+      # before it reaches anyone's machine.
+      - name: Install project (fresh dependency resolve, incl. dev extra)
+        run: pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check pvt tests ui app.py cli.py
+
+      - name: Type-check (mypy)
+        run: mypy pvt
+
+      - name: Test suite (100% branch-coverage gate on pvt/)
+        run: pytest
+
+      - name: Import smoke (pvt, ui, cli)
+        run: python -c "import pvt, ui, cli"

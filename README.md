@@ -1,5 +1,7 @@
 # PVT Calculator
 
+[![CI](https://github.com/manyfaceddev/PVT-Calculator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/manyfaceddev/PVT-Calculator/actions/workflows/ci.yml)
+
 An ADNOC-internal PVT laboratory platform: a pure-Python calculation engine
 plus a Streamlit front-end for reservoir-fluid property calculations,
 built for a commercial PVT lab's full scope of work (reference class of

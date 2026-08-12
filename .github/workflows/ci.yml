@@ -1,20 +1,59 @@
 name: CI
+
 on:
   push:
-    branches: ["main", "feature/**"]
+    branches:
+      - main
+      - "feature/**"
   pull_request:
-    branches: ["main"]
+    branches:
+      - main
+
+# Cancel superseded runs on the same PR/branch so a fast-follow push doesn't
+# queue up behind a run that's already obsolete. Pushes to main are never
+# cancelled -- every commit on main gets a full, uncancelled run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
+    name: test
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.12: the floor pinned by pyproject.toml's requires-python.
+        # 3.14: catches dependency/interpreter drift the 3.12 leg can't see
+        # (e.g. a fresh streamlit/pandas resolve that only breaks on the
+        # newer interpreter) before it reaches anyone's machine.
+        python-version: ["3.12", "3.14"]
+    uses: ./.github/workflows/reusable-test.yml
+    with:
+      python-version: ${{ matrix.python-version }}
+
+  docs-smoke:
+    name: docs-smoke
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -e ".[dev]"
-      - run: ruff check pvt tests ui app.py cli.py
-      - run: mypy pvt
-      - run: pytest
-      - run: python -c "import pvt, ui, cli"
+
+      - name: Install matplotlib (figure regeneration)
+        run: pip install matplotlib
+
+      - name: Install pandoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pandoc
+
+      - name: Regenerate manual figures
+        run: python scripts/make_figures.py
+
+      - name: Convert manual chapters to LaTeX source (no PDF engine, no TeX install)
+        run: bash scripts/manual_to_tex.sh

@@ -4,22 +4,33 @@
 #
 # Concatenates docs/manual/00-title.md followed by chapters 01 through 11
 # (docs/manual/01-*.md ... docs/manual/11-*.md, in numeric order) into
-# docs/manual/PVT-Platform-Manual.pdf.
+# docs/manual/PVT-Platform-Manual.pdf. Chapter discovery is shared with
+# scripts/manual_to_tex.sh (CI's docs-smoke check) via
+# scripts/manual_chapters.sh -- see that file for the contract.
 #
-# Requires: pandoc, and a LaTeX distribution providing pdflatex
+# Requires: pandoc, and a LaTeX distribution providing pdflatex/xelatex
 # (e.g. TeX Live / MacTeX / MiKTeX) on PATH.
+#
+# Fonts default to this project's usual macOS/MacTeX authoring machine
+# (Times New Roman / Menlo) but can be overridden -- e.g. in CI, where
+# those fonts don't exist -- via env vars:
+#   PVT_MANUAL_MAINFONT   default: "Times New Roman"
+#   PVT_MANUAL_MONOFONT   default: "Menlo"
 #
 # Usage:
 #   bash scripts/build_manual.sh
+#   PVT_MANUAL_MAINFONT="TeX Gyre Termes" PVT_MANUAL_MONOFONT="DejaVu Sans Mono" \
+#       bash scripts/build_manual.sh
 
 set -euo pipefail
 shopt -s nullglob
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-MANUAL_DIR="$REPO_ROOT/docs/manual"
-TITLE_FILE="$MANUAL_DIR/00-title.md"
-OUT_PDF="$MANUAL_DIR/PVT-Platform-Manual.pdf"
+OUT_PDF="$REPO_ROOT/docs/manual/PVT-Platform-Manual.pdf"
+
+MAINFONT="${PVT_MANUAL_MAINFONT:-Times New Roman}"
+MONOFONT="${PVT_MANUAL_MONOFONT:-Menlo}"
 
 fail() {
     echo "build_manual.sh: ERROR: $*" >&2
@@ -32,24 +43,9 @@ command -v pandoc >/dev/null 2>&1 \
 command -v pdflatex >/dev/null 2>&1 \
     || fail "pdflatex is not on PATH. Install a LaTeX distribution (e.g. TeX Live / MacTeX) to build the manual."
 
-# ── Chapter checks ───────────────────────────────────────────────────────
-[ -d "$MANUAL_DIR" ] || fail "manual directory not found: $MANUAL_DIR"
-[ -f "$TITLE_FILE" ] || fail "title/abstract page missing: $TITLE_FILE"
-
-# Chapters 01-11 must each resolve to exactly one docs/manual/<NN>-*.md
-# file, in that numeric order. Fail loudly (rather than silently building
-# a partial manual) if a chapter is missing or a number is ambiguous.
-CHAPTERS=()
-for n in 01 02 03 04 05 06 07 08 09 10 11; do
-    matches=("$MANUAL_DIR"/"$n"-*.md)
-    if [ "${#matches[@]}" -eq 0 ]; then
-        fail "chapter $n is missing: no file matching docs/manual/$n-*.md"
-    fi
-    if [ "${#matches[@]}" -gt 1 ]; then
-        fail "chapter $n is ambiguous: multiple files match docs/manual/$n-*.md (${matches[*]})"
-    fi
-    CHAPTERS+=("${matches[0]}")
-done
+# ── Chapter checks (shared with scripts/manual_to_tex.sh) ───────────────
+# shellcheck source=scripts/manual_chapters.sh
+source "$SCRIPT_DIR/manual_chapters.sh"
 
 # ── Figure checks ────────────────────────────────────────────────────────
 # Chapters reference these figures via relative paths (figures/*.png),
@@ -66,6 +62,7 @@ done
 VERSION="$(cd "$REPO_ROOT" && git describe --tags --always 2>/dev/null || echo "unknown")"
 
 echo "build_manual.sh: building manual (version: $VERSION)"
+echo "build_manual.sh: fonts: mainfont=\"$MAINFONT\" monofont=\"$MONOFONT\""
 echo "build_manual.sh: title page: ${TITLE_FILE#"$REPO_ROOT"/}"
 for chapter in "${CHAPTERS[@]}"; do
     echo "build_manual.sh: chapter: ${chapter#"$REPO_ROOT"/}"
@@ -78,7 +75,7 @@ pandoc "$TITLE_FILE" "${CHAPTERS[@]}" \
     --toc --toc-depth=2 \
     -V geometry:margin=2.5cm \
     -V documentclass=report \
-    --pdf-engine=xelatex -V mainfont="Times New Roman" -V monofont="Menlo" \
+    --pdf-engine=xelatex -V mainfont="$MAINFONT" -V monofont="$MONOFONT" \
     -H "$MANUAL_DIR/pdf-header.tex" \
     --metadata title="ADRIC PVT Lab Platform, Software Manual" \
     --metadata author="ADRIC / PVT Engineering" \

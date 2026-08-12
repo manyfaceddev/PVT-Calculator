@@ -1,0 +1,143 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+
+jobs:
+  # Same gate ci.yml runs, pinned to the floor Python version -- a release
+  # never ships without the full suite (100% pvt/ branch coverage), lint,
+  # and type-check passing.
+  test:
+    name: test
+    uses: ./.github/workflows/reusable-test.yml
+    with:
+      python-version: "3.12"
+
+  build-manual:
+    name: Build manual PDF
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install matplotlib (figure regeneration)
+        run: pip install matplotlib
+
+      - name: Regenerate manual figures
+        run: python scripts/make_figures.py
+
+      # Times New Roman / Menlo (build_manual.sh's local-machine defaults)
+      # don't exist on ubuntu-latest; override to Ubuntu-available
+      # equivalents via the env vars build_manual.sh now reads. Local
+      # (macOS) behavior is unchanged since those env vars are unset there.
+      - name: Install pandoc + TeX Live (xelatex, fonts)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pandoc \
+            texlive-latex-recommended \
+            texlive-latex-extra \
+            texlive-xetex \
+            texlive-fonts-recommended \
+            texlive-fonts-extra \
+            fonts-dejavu
+
+      - name: Build manual PDF (Ubuntu-available fonts)
+        env:
+          PVT_MANUAL_MAINFONT: "TeX Gyre Termes"
+          PVT_MANUAL_MONOFONT: "DejaVu Sans Mono"
+        run: bash scripts/build_manual.sh
+
+      - name: Upload manual PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-pdf
+          path: docs/manual/PVT-Platform-Manual.pdf
+          if-no-files-found: error
+
+  build-bundles:
+    name: Build offline bundles
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install zip
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends zip
+
+      # Native/current-machine bundle: ubuntu-latest amd64, i.e. the linux
+      # runtime target.
+      - name: Build offline bundle (linux, current machine)
+        run: bash scripts/make_offline_bundle.sh
+
+      - name: Build offline bundle (win_amd64)
+        run: bash scripts/make_offline_bundle.sh win_amd64
+
+      - name: Zip offline bundles
+        run: |
+          cd dist
+          for d in pvt-offline-*/; do
+            name="${d%/}"
+            zip -r "${name}.zip" "$name"
+          done
+
+      - name: Upload offline bundle artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-bundles
+          path: dist/*.zip
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: [build-manual, build-bundles]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download manual PDF artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: manual-pdf
+          path: release-assets
+
+      - name: Download offline bundle artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: offline-bundles
+          path: release-assets
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/PVT-Platform-Manual.pdf
+            release-assets/*.zip
+          generate_release_notes: true
