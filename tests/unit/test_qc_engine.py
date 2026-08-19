@@ -10,7 +10,7 @@ def test_grade_bands(value, expected):
 
 def test_registry_defaults_and_override():
     reg = ThresholdRegistry()
-    assert len(ThresholdRegistry.DEFAULTS) == 10
+    assert len(ThresholdRegistry.DEFAULTS) == 14
     assert reg.get("mass_balance_pct") == (2.0, 3.0)
     reg.override("mass_balance_pct", 1.0, 2.0, note="tight client spec")
     assert reg.get("mass_balance_pct") == (1.0, 2.0)
