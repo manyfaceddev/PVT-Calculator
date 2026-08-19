@@ -177,6 +177,67 @@ def test_errors_accumulate():
         stages=HAPPY.stages[:1],  # too few stages
         t_res_f=1000.0,  # out of physical range
         bubble_point_step=99,  # out of range (also suppresses the consistency check)
+        # neutralized: HAPPY.reservoir_p_psia (3938.73) would fall below
+        # the single remaining stage's P (7014.73) once stages is
+        # truncated above, tripping the new reservoir_p_psia advisory
+        # rule as an unrelated 4th message -- keep this test's "3
+        # independent violations" intent unambiguous.
+        reservoir_p_psia=None,
     )
     errors = validate(bad)
     assert len(errors) == 3
+
+
+def test_reservoir_p_psia_none_skips_rule():
+    bad = dataclasses.replace(HAPPY, reservoir_p_psia=None)
+    assert validate(bad) == []
+
+
+def test_reservoir_p_psia_valid_not_flagged():
+    # HAPPY.reservoir_p_psia = 3938.73, well within (last stage's P ..
+    # RESERVOIR_P_MAX_PSIA) -- already implied by test_happy_path_from_fixture,
+    # asserted explicitly here per the round-2 coverage requirement.
+    errors = validate(HAPPY)
+    assert not any("reservoir_p_psia" in e.lower() for e in errors)
+
+
+def test_reservoir_p_psia_nonpositive_flagged_blocking():
+    bad = dataclasses.replace(HAPPY, reservoir_p_psia=0.0)
+    errors = validate(bad)
+    reservoir_errors = [e for e in errors if "reservoir_p_psia" in e.lower()]
+    assert len(reservoir_errors) == 1
+    assert "must be > 0" in reservoir_errors[0]
+    assert not reservoir_errors[0].startswith("consistency:")  # blocking, not advisory
+
+    neg = dataclasses.replace(HAPPY, reservoir_p_psia=-500.0)
+    errors_neg = validate(neg)
+    assert any("reservoir_p_psia" in e.lower() for e in errors_neg)
+
+
+def test_reservoir_p_psia_below_last_stage_flagged_advisory():
+    # HAPPY's last stage (step 40) has P=218.0346 -- below that is
+    # implausible (the reservoir pressure should be at or above every
+    # pressure the expansion ever reaches).
+    bad = dataclasses.replace(HAPPY, reservoir_p_psia=100.0)
+    errors = validate(bad)
+    assert any(
+        e.startswith("consistency:") and "reservoir_p_psia" in e for e in errors
+    )
+
+
+def test_reservoir_p_psia_above_max_flagged_advisory():
+    bad = dataclasses.replace(HAPPY, reservoir_p_psia=30_000.0)
+    errors = validate(bad)
+    assert any(
+        e.startswith("consistency:") and "reservoir_p_psia" in e for e in errors
+    )
+
+
+def test_reservoir_p_psia_plausibility_check_skipped_when_no_stages():
+    # Guard: a positive reservoir_p_psia with an empty stage table must
+    # not crash trying to index stages[-1] -- the plausibility-band check
+    # is simply skipped (the "too few stages" rule already flags the
+    # empty table separately).
+    bad = dataclasses.replace(HAPPY, stages=(), reservoir_p_psia=1000.0)
+    errors = validate(bad)
+    assert not any("reservoir_p_psia" in e.lower() for e in errors)

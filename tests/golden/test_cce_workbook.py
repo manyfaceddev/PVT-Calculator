@@ -98,6 +98,7 @@ WB = Path("tests/fixtures/workbooks/2_CCE_Calculation_Sheet_v5_OpenSafe_A4.xlsx"
 def _load() -> tuple[CceInputs, dict]:
     wb = openpyxl.load_workbook(WB, data_only=True)
     ws = wb["CCE Calculation"]
+    mc = wb["Mean Compressibility"]
 
     stages = []
     row = 16
@@ -130,6 +131,9 @@ def _load() -> tuple[CceInputs, dict]:
         "J8": float(ws["J8"].value),
         "J9": float(ws["J9"].value),
         "J11": float(ws["J11"].value),
+        "MC_D4": float(mc["D4"].value),  # Mean Compressibility!D4 (Range 1)
+        "MC_H8": float(mc["H8"].value),  # Mean Compressibility!H8 (ledger D-020, flipped)
+        "MC_D9": float(mc["D9"].value),  # Mean Compressibility!D9 (correct-order duplicate)
     }
     return inputs, cached
 
@@ -212,24 +216,27 @@ def test_y_function_none_at_and_above_psat():
 
 def test_mean_compressibility_range1_matches_sheet_d4():
     # Mean Compressibility!D4 = Range 1: row16 (step1) -> row19 (step4).
+    # CACHED["MC_D4"] is read live in _load() (GOLDEN-INTEGRITY: never
+    # hand-typed from a digest).
     row16, row19 = INPUTS.stages[0], INPUTS.stages[3]
     c = mean_compressibility_1e6_per_psi(
         v_i=row16.v_cell_cc, p_i=row16.p, v_f=row19.v_cell_cc, p_f=row19.p
     )
-    assert c == pytest.approx(7.988732593178792, rel=1e-6)  # Mean Compressibility!D4
+    assert c == pytest.approx(CACHED["MC_D4"], rel=1e-6)
 
 
 def test_res_to_psat_matches_abs_h8_and_d9():
     # ledger D-020: Mean Compressibility!H8 flips the numerator operands
-    # for the "Reservoir Pressure -> Psat" range and returns -12.365...;
-    # D9 duplicates the identical row23->row35 range with the correct
-    # operand order and cached +12.365433539344826 = abs(H8 cached).
-    # Row 23 is located generically here (independently of calc.py) to
-    # prove the *formula*: it's the stage whose pressure matches D5
-    # ("Reservoir Pressure").
-    wb = openpyxl.load_workbook(WB, data_only=True)
-    ws = wb["CCE Calculation"]
-    reservoir_p = float(ws["D5"].value)  # 3938.73
+    # for the "Reservoir Pressure -> Psat" range and returns a negative
+    # value; D9 duplicates the identical row23->row35 range with the
+    # correct operand order and is the positive counterpart, = abs(H8).
+    # CACHED["MC_H8"]/CACHED["MC_D9"] are read live in _load()
+    # (GOLDEN-INTEGRITY: never hand-typed from a digest). Row 23 is
+    # located generically here (independently of calc.py) to prove the
+    # *formula*: it's the stage whose pressure matches D5 ("Reservoir
+    # Pressure"), already read live into INPUTS.reservoir_p_psia.
+    reservoir_p = INPUTS.reservoir_p_psia
+    assert reservoir_p is not None
     reservoir_stage = next(s for s in INPUTS.stages if s.p == reservoir_p)
     bubble_stage = INPUTS.stages[BUBBLE_IDX]
 
@@ -239,20 +246,18 @@ def test_res_to_psat_matches_abs_h8_and_d9():
         v_f=bubble_stage.v_cell_cc,
         p_f=bubble_stage.p,
     )
-    h8_cached = -12.365433539344826
-    d9_cached = 12.365433539344826
-    assert c == pytest.approx(d9_cached, rel=1e-6)
-    assert c == pytest.approx(abs(h8_cached), rel=1e-6)
+    assert c == pytest.approx(CACHED["MC_D9"], rel=1e-6)
+    assert c == pytest.approx(abs(CACHED["MC_H8"]), rel=1e-6)
 
     # ROUND 2: the engine's own res_to_psat (reservoir_p_psia=D5, wired
     # via _load()) now reproduces this exactly through calc.py's own
     # MATCH(-1)-equivalent anchor selection -- not just the raw helper
     # applied to a manually-located row.
     assert RESULTS.mean_compressibility_1_psi["res_to_psat"] == pytest.approx(
-        d9_cached, rel=1e-6
+        CACHED["MC_D9"], rel=1e-6
     )
     assert RESULTS.mean_compressibility_1_psi["res_to_psat"] == pytest.approx(
-        abs(h8_cached), rel=1e-6
+        abs(CACHED["MC_H8"]), rel=1e-6
     )
 
 
@@ -271,8 +276,9 @@ def test_first_stage_to_psat_is_a_self_consistent_arithmetic_check():
         expected, rel=1e-9
     )
     # Sanity: distinct from the reservoir-row-anchored res_to_psat/D9/H8
-    # value -- documents that these are two legitimately different
-    # quantities, not a bug in either.
+    # value (read live, not hand-typed -- see CACHED["MC_D9"] above) --
+    # documents that these are two legitimately different quantities,
+    # not a bug in either.
     assert RESULTS.mean_compressibility_1_psi["first_stage_to_psat"] != pytest.approx(
-        12.365433539344826, rel=1e-3
+        CACHED["MC_D9"], rel=1e-3
     )

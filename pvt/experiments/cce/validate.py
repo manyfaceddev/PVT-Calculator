@@ -10,6 +10,16 @@ gate at `CCE Calculation!J11:K11` (`=ABS(D9-J9)` compared against 10) and
 is prefixed "consistency:" so callers can tell it apart from a blocking
 error -- the calculation still runs when only this rule fires (plan
 Task 1 spec).
+
+`reservoir_p_psia` (Task 2 round 2, sheet `D5`) is optional -- rules
+below only run when it's provided. A non-positive value is a genuine
+input error (blocking, mirrors the volume/temperature "must be"
+messages). A value outside the plausible range relative to the stage
+table -- below the last (lowest-pressure) stage's P, or above
+RESERVOIR_P_MAX_PSIA -- is advisory only (prefixed "consistency:", same
+non-blocking mechanism as the psat-consistency rule): calc.py's
+`res_to_psat` MATCH(-1)-style anchor search still runs and produces a
+number even when this fires, it's just flagged as an implausible input.
 """
 
 from pvt.experiments.cce.models import CceInputs
@@ -17,6 +27,7 @@ from pvt.experiments.cce.models import CceInputs
 PSAT_CONSISTENCY_TOL_PSI = 10.0
 T_RES_F_MIN = -60.0
 T_RES_F_MAX = 500.0
+RESERVOIR_P_MAX_PSIA = 25_000.0
 
 
 def validate(inputs: CceInputs) -> list[str]:
@@ -65,5 +76,24 @@ def validate(inputs: CceInputs) -> list[str]:
             f"t_res_f ({inputs.t_res_f:g}) is outside the physical range "
             f"{T_RES_F_MIN:g}..{T_RES_F_MAX:g} F"
         )
+
+    # Rule 7: reservoir_p_psia, if tracked, must be physically sane; the
+    # plausibility band against the stage table is advisory only.
+    if inputs.reservoir_p_psia is not None:
+        if inputs.reservoir_p_psia <= 0:
+            messages.append(
+                f"reservoir_p_psia ({inputs.reservoir_p_psia:g}) must be > 0"
+            )
+        elif inputs.stages:
+            last_stage_p = inputs.stages[-1].p
+            if (
+                inputs.reservoir_p_psia < last_stage_p
+                or inputs.reservoir_p_psia > RESERVOIR_P_MAX_PSIA
+            ):
+                messages.append(
+                    f"consistency: reservoir_p_psia ({inputs.reservoir_p_psia:g}) is "
+                    f"outside the plausible range ({last_stage_p:g}.."
+                    f"{RESERVOIR_P_MAX_PSIA:g} psia) for this stage table"
+                )
 
     return messages
