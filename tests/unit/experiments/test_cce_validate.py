@@ -22,8 +22,16 @@ Cell-map notes (confirmed by loading the fixture with both
   reference C16. So C is the entered volume; D/E are workbook-computed
   and are intentionally NOT read here (calc.py, Task 2, recomputes them).
 
-- D9 = "Visual Bubble Point (psig)" = 1155.73  -> CceInputs.psat_visual
+- D5 = "Reservoir Pressure (psig)" = 3938.73    -> CceInputs.reservoir_p_psia
+  D9 = "Visual Bubble Point (psig)" = 1155.73  -> CceInputs.psat_visual
   D10 = "Bubble Point Step #:" = 20             -> CceInputs.bubble_point_step
+
+  D5 is a separate, independently-entered lab input from D7 "Working
+  Pressure (psig)" = 7014.73 (row 16's pressure, the first stage) --
+  added in Task 2 round 2 (controller adjudication, see
+  pvt/experiments/cce/calc.py and docs/excel-deviations.md D-020) so
+  that calc.py can anchor the reservoir->Psat mean compressibility the
+  same way Mean Compressibility!H8 does.
 
   NOTE -- brief/plan discrepancy: the task-1 brief and the Phase 3a plan's
   Task 1/Task 5 cell maps both describe the visual Psat as cell **D8**.
@@ -75,6 +83,7 @@ def _load_cce_happy_path() -> CceInputs:
         psat_visual=float(ws["D9"].value),
         bubble_point_step=int(ws["D10"].value),
         stages=tuple(stages),
+        reservoir_p_psia=float(ws["D5"].value),
     )
 
 
@@ -92,6 +101,7 @@ def test_fixture_shape_sanity():
     assert HAPPY.psat_visual == 1155.73
     assert HAPPY.stages[19].step == 20
     assert HAPPY.stages[19].p == 1155.73
+    assert HAPPY.reservoir_p_psia == 3938.73
 
 
 def test_too_few_stages_flagged():

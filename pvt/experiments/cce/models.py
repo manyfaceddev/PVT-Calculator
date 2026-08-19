@@ -10,9 +10,10 @@ confirmed by loading the fixture with openpyxl in both `data_only=True`
 and `data_only=False` modes (see also
 `tests/unit/experiments/test_cce_validate.py`):
 
-    D6  = Temperature (deg F)                     -> CceInputs.t_res_f
-    D9  = Visual Bubble Point (psig)               -> CceInputs.psat_visual
-    D10 = Bubble Point Step # (1-based row index)  -> CceInputs.bubble_point_step
+    D5  = Reservoir Pressure (psig)                -> CceInputs.reservoir_p_psia
+    D6  = Temperature (deg F)                      -> CceInputs.t_res_f
+    D9  = Visual Bubble Point (psig)                -> CceInputs.psat_visual
+    D10 = Bubble Point Step # (1-based row index)   -> CceInputs.bubble_point_step
     Stage table, rows 16-55 (40 stages):
         A = Step (1..40)                                    -> CceStage.step
         B = Pressure (psig, as-entered; D3 policy)          -> CceStage.p
@@ -40,6 +41,18 @@ and `data_only=False` modes (see also
     plan-documentation offset, not a workbook defect, so it is not
     logged to docs/workbook-defect-review.md.
 
+    ROUND-2 NOTE (Task 2 controller adjudication, docs/excel-deviations.md
+    D-020): the plan's Task 5 cell map also lists D7 as the reservoir
+    pressure. The fixture has D7 = "Working Pressure (psig)" = 7014.73
+    (the first stage's pressure, row 16) -- a DIFFERENT, independently
+    entered lab input from D5 = "Reservoir Pressure (psig)" = 3938.73,
+    which is what `Mean Compressibility!H8` actually anchors its
+    "Reservoir Pressure -> Psat" range to (via `MATCH` on the stage
+    table, landing on row 23, not row 16). CceInputs.reservoir_p_psia
+    below corresponds to D5, not D7. Flagged here for the Task 5
+    importer author: it must read BOTH D5 (reservoir_p_psia) and D9
+    (psat_visual) -- the plan's D7/D8 cell list is wrong on both.
+
 Pressure policy (defect D3, see plan Global Constraints): CceStage.p is
 carried as-entered from the workbook (labelled "psig" on the sheet); the
 engine's absolute-psia policy and the "as entered" import note are an
@@ -61,13 +74,22 @@ class CceStage:
 
 @dataclass(frozen=True)
 class CceInputs:
-    """Inputs for a Constant Composition Expansion test."""
+    """Inputs for a Constant Composition Expansion test.
+
+    `reservoir_p_psia` (sheet `CCE Calculation!D5`, "Reservoir Pressure")
+    anchors the reservoir->Psat mean compressibility, per `Mean
+    Compressibility!H8`'s MATCH on the stage table (see calc.py, Task 2
+    round 2). Optional -- defaults to None, in which case calc.py's
+    `mean_compressibility_1_psi` carries no "res_to_psat" key, only the
+    always-available "first_stage_to_psat" pairing.
+    """
 
     t_res_f: float
     psat_visual: float  # visually observed Psat (sheet D9)
     bubble_point_step: int  # user-picked step, 1-based (sheet D10)
     stages: tuple[CceStage, ...]  # descending P, 2..40 stages
     rho_at_psat_g_cc: float | None = None  # density at Psat, if measured
+    reservoir_p_psia: float | None = None  # reservoir pressure, if tracked separately (sheet D5)
 
 
 @dataclass(frozen=True)
@@ -100,4 +122,7 @@ class CceResults:
     psat_consistency_ok: bool  # |psat_visual - picked-row P| <= 10 psi
     v_sat_cc: float
     stages: tuple[CceStageResult, ...]
-    mean_compressibility_1_psi: dict[str, float]  # keys: "res_to_psat", pairwise ranges
+    mean_compressibility_1_psi: dict[str, float]
+    """Keys: "first_stage_to_psat" (always present once >=2 stages sit at
+    or above Psat) and "res_to_psat" (present only when
+    CceInputs.reservoir_p_psia is set; see calc.py, Task 2 round 2)."""
