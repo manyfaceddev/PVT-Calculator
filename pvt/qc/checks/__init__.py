@@ -6,6 +6,7 @@ from pvt.qc.checks import (
     monotonic_compressibility,
     mw_consistency,
     polynomial_fit,
+    psat_breakpoint,
     rho_v_constancy,
 )
 
@@ -15,5 +16,6 @@ __all__ = [
     "monotonic_compressibility",
     "mw_consistency",
     "polynomial_fit",
+    "psat_breakpoint",
     "rho_v_constancy",
 ]

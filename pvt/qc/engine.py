@@ -96,6 +96,15 @@ class ThresholdRegistry:
     proposals, configurable via `override`, pending Swej calibration (see
     `pvt.qc.checks.monotonic_compressibility` / `rho_v_constancy` module
     docstrings).
+
+    "psat_breakpoint_vs_visual_psi" (10.0, 25.0) grades a NEW check (Phase
+    3a Task 4, dissected from `Bubble_Dew_Point_QC_Tool_Final.xlsx`, see
+    `pvt.qc.checks.psat_breakpoint`'s module docstring): its review edge
+    (10.0 psi) matches the existing house Psat-consistency convention
+    already hard-coded in `pvt.experiments.cce.calc.calculate`
+    (`psat_consistency_ok`'s <=10 psi gate); the 25.0 psi fail edge has no
+    existing house precedent and is this key's own engineering-judgment
+    proposal, pending Swej calibration.
     """
 
     DEFAULTS: dict[str, tuple[float, float]] = {
@@ -113,6 +122,7 @@ class ThresholdRegistry:
         "cce_tp_fit_dev_pct": (1.0, 2.0),
         "cce_monotonic_violations": (0.0, 1.0),
         "cce_rho_v_spread_pct": (0.5, 1.0),
+        "psat_breakpoint_vs_visual_psi": (10.0, 25.0),
     }
 
     def __init__(self) -> None:

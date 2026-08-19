@@ -87,15 +87,15 @@ def test_count_import_templates_is_two() -> None:
 
 
 def test_count_qc_checks_is_pvt_qc_checks_exports_plus_gor_check() -> None:
-    """`pvt.qc.checks.__all__`'s six modules (Phase 2's three plus Phase
-    3a Task 3's polynomial_fit/monotonic_compressibility/rho_v_constancy),
-    plus the Actual-GOR verification check (which lives in
-    `pvt.experiments.recombination.loading`, not `pvt.qc.checks` -- see
-    `count_qc_checks`'s docstring)."""
+    """`pvt.qc.checks.__all__`'s seven modules (Phase 2's three plus Phase
+    3a Task 3's polynomial_fit/monotonic_compressibility/rho_v_constancy,
+    plus Phase 3a Task 4's psat_breakpoint), plus the Actual-GOR
+    verification check (which lives in `pvt.experiments.recombination.
+    loading`, not `pvt.qc.checks` -- see `count_qc_checks`'s docstring)."""
     import pvt.qc.checks as qc_checks_pkg
 
     assert home_page_logic.count_qc_checks() == len(qc_checks_pkg.__all__) + 1
-    assert home_page_logic.count_qc_checks() == 7
+    assert home_page_logic.count_qc_checks() == 8
 
 
 def test_count_correlation_modules_matches_every_subpackage() -> None:
