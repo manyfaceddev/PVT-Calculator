@@ -230,14 +230,14 @@ def test_check_none_visual_psat_is_trivial_pass():
 def test_check_above_segment_under_two_points_raises():
     above = [(20.0, 1.0)]  # only 1 point >= split_at
     below = [(5.0, 2.0), (10.0, 2.5), (15.0, 3.0)]
-    with pytest.raises(InputValidationError):
+    with pytest.raises(InputValidationError, match=r"above-split .* needs at least 2 points"):
         psat_breakpoint.check(above + below, split_at=18.0)
 
 
 def test_check_below_segment_under_two_points_raises():
     above = [(20.0, 1.0), (25.0, 1.5), (30.0, 2.0)]
     below = [(5.0, 2.0)]  # only 1 point < split_at
-    with pytest.raises(InputValidationError):
+    with pytest.raises(InputValidationError, match=r"below-split .* needs at least 2 points"):
         psat_breakpoint.check(above + below, split_at=18.0)
 
 
@@ -246,7 +246,7 @@ def test_check_degenerate_identical_pressures_in_segment_raises():
     # slope undefined (would divide by zero without the guard).
     above = [(20.0, 1.0), (20.0, 1.5)]
     below = [(5.0, 2.0), (10.0, 2.5), (15.0, 3.0)]
-    with pytest.raises(InputValidationError):
+    with pytest.raises(InputValidationError, match=r"all pressures are identical"):
         psat_breakpoint.check(above + below, split_at=18.0)
 
 
@@ -275,7 +275,7 @@ def _load_cce_results():
         bubble_point_step=int(ws["D10"].value),
         stages=tuple(stages),
         rho_at_psat_g_cc=float(ws["J10"].value),
-        reservoir_p_psia=float(ws["D5"].value),
+        reservoir_p=float(ws["D5"].value),
     )
     return calculate(inputs), inputs.psat_visual
 

@@ -7,10 +7,13 @@ compaction -- `docs/workbook-defect-review.md` row C5: "Compressibility-
 monotonicity and rho*V-constancy checks existed in v1/v2, dropped in v5's
 layout compaction. QC Protocol rows 42-87 in v2."). Physically, as
 pressure falls toward the bubble point in a single-phase liquid, the
-instantaneous isothermal compressibility of the fluid should not DECREASE
--- gas coming out of solution as P approaches Psat makes the fluid
-progressively more compressible. A decrease flags either a bad data point
-or a fluid/lab issue worth a second look.
+instantaneous isothermal compressibility of the fluid should not DECREASE:
+depressurising an undersaturated oil expands it, the molecules pack less
+tightly, and c_o = -(1/V)(dV/dP) rises monotonically toward its bubble-
+point value. (No gas comes out of solution above Psat -- that mechanism
+only starts below the bubble point, outside this check's window.) A
+decrease flags either a bad data point or a fluid/lab issue worth a
+second look.
 
 Threshold: `"cce_monotonic_violations" = (0.0, 1.0)`, graded on the COUNT
 of violating consecutive pairs (not a percent deviation) -- 0 violations

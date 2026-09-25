@@ -101,8 +101,8 @@ class ThresholdRegistry:
     3a Task 4, dissected from `Bubble_Dew_Point_QC_Tool_Final.xlsx`, see
     `pvt.qc.checks.psat_breakpoint`'s module docstring): its review edge
     (10.0 psi) matches the existing house Psat-consistency convention
-    already hard-coded in `pvt.experiments.cce.calc.calculate`
-    (`psat_consistency_ok`'s <=10 psi gate); the 25.0 psi fail edge has no
+    (`pvt.experiments.cce.validate.PSAT_CONSISTENCY_TOL_PSI`, shared by
+    `calculate`'s `psat_consistency_ok` gate); the 25.0 psi fail edge has no
     existing house precedent and is this key's own engineering-judgment
     proposal, pending Swej calibration.
     """

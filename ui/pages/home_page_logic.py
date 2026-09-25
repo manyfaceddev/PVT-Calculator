@@ -117,15 +117,20 @@ def count_import_templates() -> int:
 
 
 def count_qc_checks() -> int:
-    """Number of QC checks implemented: every module `pvt.qc.checks`
-    exports (composition normalization, Hoffmann-Crump K-value consistency,
-    MW consistency — see its `__all__`), plus the Actual-GOR verification
-    check (`pvt.experiments.recombination.loading.verify_actual_gor`,
-    `check_id="gor_actual_vs_target_pct"`). That check lives with the
-    recombination experiment rather than under `pvt.qc.checks` (it needs a
-    loading plan, not just a stream), but it is graded through the same
-    `pvt.qc.engine.QCResult`/`ThresholdRegistry` machinery as every other
-    check counted here."""
+    """Number of QC check MODULES implemented: every module `pvt.qc.checks`
+    exports (see its `__all__` — composition normalization, Hoffmann-Crump,
+    MW consistency, and the Phase 3a CCE checks), plus the Actual-GOR
+    verification check (`pvt.experiments.recombination.loading.
+    verify_actual_gor`, `check_id="gor_actual_vs_target_pct"`). That check
+    lives with the recombination experiment rather than under
+    `pvt.qc.checks` (it needs a loading plan, not just a stream), but it is
+    graded through the same `pvt.qc.engine.QCResult`/`ThresholdRegistry`
+    machinery as every other check counted here.
+
+    This deliberately counts check modules, not graded check_ids: a module
+    may grade more than one check_id (`polynomial_fit` grades both
+    `cce_sp_fit_dev_pct` and `cce_tp_fit_dev_pct`), so the registry key
+    count can exceed this tile's number."""
     return len(qc_checks_pkg.__all__) + 1
 
 

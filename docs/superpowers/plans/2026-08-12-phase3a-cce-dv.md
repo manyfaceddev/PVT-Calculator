@@ -44,7 +44,7 @@ class CceResults:
     stages: tuple[CceStageResult, ...]              # per stage: rel_vol, density (above Psat),
                                                     # instantaneous compressibility (above Psat,
                                                     # bubble-row EXCLUDED), y_function (below Psat)
-    mean_compressibility_1_psi: dict[str, float]    # keyed "res_to_psat" and pairwise ranges
+    mean_compressibility_1e6_per_psi: dict[str, float]    # keyed "res_to_psat" and pairwise ranges
 
 def validate(inputs: CceInputs) -> list[str]
 ```

@@ -137,8 +137,8 @@ numeric code never needs to special-case a blank/string value).
 Registry: `"psat_breakpoint_vs_visual_psi" = (10.0, 25.0)` -- PROPOSAL
 status, flagged pending Swej calibration. The review-band edge (10.0 psi)
 is not arbitrary: it matches the house 10-psi Psat-consistency convention
-already hard-coded in `pvt.experiments.cce.calc.calculate`
-(`psat_consistency_ok = abs(inputs.psat_visual - psat_from_data) <= 10.0`)
+(`pvt.experiments.cce.validate.PSAT_CONSISTENCY_TOL_PSI`, shared by
+`pvt.experiments.cce.calc.calculate`'s `psat_consistency_ok` gate)
 -- this key EXTENDS that existing pass/fail gate into a three-band
 PASS/REVIEW/FAIL grade by adding a 25-psi fail edge, which has no existing
 house precedent and is this module's own engineering-judgment proposal.

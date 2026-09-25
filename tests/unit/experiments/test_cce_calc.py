@@ -6,9 +6,10 @@ golden test, tests/golden/test_cce_workbook.py) exercising every branch
 of pvt/experiments/cce/calc.py: the above/at/below-Psat gating for
 density, instantaneous compressibility, and Y-function; the
 first_stage_to_psat edge case when the bubble row is the first stage;
-and the reservoir_p_psia-anchored res_to_psat (round 2: MATCH(-1)-style
+and the reservoir_p-anchored res_to_psat (round 2: MATCH(-1)-style
 anchor selection, its "reservoir exceeds first stage" fallback, and its
-own zero-width-range omission edge case).
+omission whenever the anchor lands at/below the bubble row -- zero-width
+or two-phase-contaminated ranges, ledger D-024).
 
 All expected values below are hand-derived directly from the brief's
 formulas (see calc.py module docstring) -- shown inline as fractions
@@ -51,8 +52,28 @@ BASE = CceInputs(
 
 def test_rejects_invalid_inputs_by_default():
     bad = dataclasses.replace(BASE, bubble_point_step=99)
-    with pytest.raises(InputValidationError):
+    with pytest.raises(InputValidationError) as exc_info:
         calculate(bad)
+    assert exc_info.value.errors == [
+        "bubble_point_step (99) must be within 1..6 (stage count)"
+    ]
+
+
+def test_raised_errors_exclude_advisory_messages():
+    # An input that trips BOTH a blocking rule (non-positive volume) and a
+    # consistency advisory (visual Psat 100 psi off the picked row): the
+    # raised payload must carry the blocking message and FILTER OUT the
+    # advisory -- validate() itself reports both.
+    stages = (STAGES[0], dataclasses.replace(STAGES[1], v_cell_cc=-1.0)) + STAGES[2:]
+    bad = dataclasses.replace(BASE, stages=stages, psat_visual=600.0)
+    from pvt.experiments.cce.validate import validate
+
+    both = validate(bad)
+    assert any(m.startswith("consistency:") for m in both)  # advisory present pre-filter
+    with pytest.raises(InputValidationError) as exc_info:
+        calculate(bad)
+    assert "all stage volumes (v_cell_cc) must be > 0" in exc_info.value.errors
+    assert not any(m.startswith("consistency:") for m in exc_info.value.errors)
 
 
 def test_validate_inputs_false_skips_validation():
@@ -139,14 +160,32 @@ def test_y_function_below_psat_only():
     assert r.stages[5].y_function == pytest.approx(y5, rel=1e-9)
 
 
+def test_y_function_omitted_when_below_psat_volume_does_not_exceed_v_sat():
+    # A noisy below-Psat reading exactly EQUAL to the bubble-row volume
+    # (rel_vol == 1): the Y-function denominator is zero -- the sheet's
+    # col G would show #DIV/0! (ledger D-025); the engine returns None
+    # instead of crashing. A reading BELOW v_sat (rel_vol < 1) is equally
+    # undefined (negative artefact on the sheet) -> None too.
+    stages = STAGES[:4] + (
+        dataclasses.replace(STAGES[4], v_cell_cc=116.0),  # == v_sat
+        dataclasses.replace(STAGES[5], v_cell_cc=110.0),  # < v_sat
+    )
+    r = calculate(dataclasses.replace(BASE, stages=stages))
+    assert r.stages[4].y_function is None
+    assert r.stages[5].y_function is None
+    # rel_vol itself is still reported for both rows
+    assert r.stages[4].rel_vol == pytest.approx(1.0, rel=1e-12)
+    assert r.stages[5].rel_vol == pytest.approx(110 / 116, rel=1e-12)
+
+
 def test_first_stage_to_psat_uses_first_stage_and_bubble_row():
     r = calculate(BASE)
     expected = ((116 - 100) / ((100 + 116) / 2)) / (1000 - 700) * 1_000_000
-    assert r.mean_compressibility_1_psi["first_stage_to_psat"] == pytest.approx(
+    assert r.mean_compressibility_1e6_per_psi["first_stage_to_psat"] == pytest.approx(
         expected, rel=1e-9
     )
-    # reservoir_p_psia is unset on BASE -> no reservoir-anchored key at all
-    assert "res_to_psat" not in r.mean_compressibility_1_psi
+    # reservoir_p is unset on BASE -> no reservoir-anchored key at all
+    assert "res_to_psat" not in r.mean_compressibility_1e6_per_psi
 
 
 def test_first_stage_to_psat_omitted_when_bubble_row_is_first_stage():
@@ -155,7 +194,7 @@ def test_first_stage_to_psat_omitted_when_bubble_row_is_first_stage():
     # would divide by zero) so the key is simply absent.
     bad = dataclasses.replace(BASE, bubble_point_step=1, psat_visual=1000.0)
     r = calculate(bad)
-    assert "first_stage_to_psat" not in r.mean_compressibility_1_psi
+    assert "first_stage_to_psat" not in r.mean_compressibility_1e6_per_psi
     # and the instantaneous-compressibility interior range is empty too
     assert all(s.inst_compressibility_1e6_per_psi is None for s in r.stages)
     # density is defined only for idx0 (the sole at/above-Psat row)
@@ -187,65 +226,80 @@ def test_mean_compressibility_helper_matches_two_point_form():
     assert result == pytest.approx(expected, rel=1e-12)
 
 
-# --- res_to_psat (round 2: reservoir_p_psia-anchored, MATCH(-1)-style) ---
+# --- res_to_psat (round 2: reservoir_p-anchored, MATCH(-1)-style) ---
 
 
 def test_res_to_psat_anchors_on_smallest_stage_p_still_above_reservoir_p():
-    # reservoir_p_psia=850 sits strictly between step2 (P=900) and step3
+    # reservoir_p=850 sits strictly between step2 (P=900) and step3
     # (P=800). Excel MATCH(850, descending P column, -1) picks the
     # SMALLEST P still >= 850, i.e. step2 (900) -- not step1 (1000, which
     # also satisfies >=850 but isn't the smallest such value).
-    inputs = dataclasses.replace(BASE, reservoir_p_psia=850.0)
+    inputs = dataclasses.replace(BASE, reservoir_p=850.0)
     r = calculate(inputs)
     expected = ((116 - 104) / ((104 + 116) / 2)) / (900 - 700) * 1_000_000
-    assert r.mean_compressibility_1_psi["res_to_psat"] == pytest.approx(
+    assert r.mean_compressibility_1e6_per_psi["res_to_psat"] == pytest.approx(
         expected, rel=1e-9
     )
     # distinct from first_stage_to_psat (different anchor row: step2 vs step1)
-    assert r.mean_compressibility_1_psi["res_to_psat"] != pytest.approx(
-        r.mean_compressibility_1_psi["first_stage_to_psat"], rel=1e-6
+    assert r.mean_compressibility_1e6_per_psi["res_to_psat"] != pytest.approx(
+        r.mean_compressibility_1e6_per_psi["first_stage_to_psat"], rel=1e-6
     )
 
 
 def test_res_to_psat_falls_back_to_first_stage_when_reservoir_p_exceeds_it():
-    # reservoir_p_psia=1500 exceeds even step1's P (1000) -- no stage
+    # reservoir_p=1500 exceeds even step1's P (1000) -- no stage
     # satisfies P>=1500, so the MATCH(-1) equivalent falls back to the
     # first stage (per the controller's round-2 ruling), which makes
     # res_to_psat coincide exactly with first_stage_to_psat here.
-    inputs = dataclasses.replace(BASE, reservoir_p_psia=1500.0)
+    inputs = dataclasses.replace(BASE, reservoir_p=1500.0)
     r = calculate(inputs)
-    assert r.mean_compressibility_1_psi["res_to_psat"] == pytest.approx(
-        r.mean_compressibility_1_psi["first_stage_to_psat"], rel=1e-12
+    assert r.mean_compressibility_1e6_per_psi["res_to_psat"] == pytest.approx(
+        r.mean_compressibility_1e6_per_psi["first_stage_to_psat"], rel=1e-12
     )
 
 
 def test_res_to_psat_omitted_when_anchor_row_is_the_bubble_row():
-    # reservoir_p_psia=700 exactly matches the bubble row's own pressure
+    # reservoir_p=700 exactly matches the bubble row's own pressure
     # (step4) -- MATCH(-1)'s smallest-P->=700 selection lands ON the
     # bubble row itself, a zero-width P range, so the key is omitted
     # rather than dividing by zero (same guard as first_stage_to_psat's
     # bubble-row-is-first-stage case).
-    inputs = dataclasses.replace(BASE, reservoir_p_psia=700.0)
+    inputs = dataclasses.replace(BASE, reservoir_p=700.0)
     r = calculate(inputs)
-    assert "res_to_psat" not in r.mean_compressibility_1_psi
+    assert "res_to_psat" not in r.mean_compressibility_1e6_per_psi
     # first_stage_to_psat is unaffected -- still present and unchanged
-    assert "first_stage_to_psat" in r.mean_compressibility_1_psi
+    assert "first_stage_to_psat" in r.mean_compressibility_1e6_per_psi
 
 
 def test_res_to_psat_omitted_when_reservoir_p_not_tracked():
-    r = calculate(BASE)  # BASE.reservoir_p_psia is None (default)
-    assert "res_to_psat" not in r.mean_compressibility_1_psi
+    r = calculate(BASE)  # BASE.reservoir_p is None (default)
+    assert "res_to_psat" not in r.mean_compressibility_1e6_per_psi
 
 
-def test_res_to_psat_anchor_search_runs_to_the_last_stage():
-    # reservoir_p_psia=100 is below EVERY stage's P (min 500) -- every
+def test_res_to_psat_omitted_when_anchor_search_runs_to_a_two_phase_stage():
+    # reservoir_p=100 is below EVERY stage's P (min 500) -- every
     # stage satisfies P>=100, so the anchor-selection loop runs to
     # completion (never hits its `break`), leaving the anchor at the
-    # LAST stage (step6, the smallest P in the table): the MATCH(-1)
-    # "smallest P still >= lookup" semantics, taken to its limit.
-    inputs = dataclasses.replace(BASE, reservoir_p_psia=100.0)
+    # LAST stage (step6): MATCH(-1) semantics taken to their limit. That
+    # anchor sits BELOW the bubble row (two-phase), so computing a
+    # "reservoir -> Psat" mean compressibility from it would contaminate
+    # a single-phase quantity (ledger D-024) -- the key is omitted.
+    # (validate() flags this same input with a plausibility advisory,
+    # which is non-blocking -- calculation still runs.)
+    inputs = dataclasses.replace(BASE, reservoir_p=100.0)
     r = calculate(inputs)
-    expected = ((116 - 170) / ((170 + 116) / 2)) / (500 - 700) * 1_000_000
-    assert r.mean_compressibility_1_psi["res_to_psat"] == pytest.approx(
-        expected, rel=1e-9
-    )
+    assert "res_to_psat" not in r.mean_compressibility_1e6_per_psi
+    assert "first_stage_to_psat" in r.mean_compressibility_1e6_per_psi
+
+
+def test_res_to_psat_omitted_when_reservoir_p_in_two_phase_band():
+    # reservoir_p=600 sits INSIDE the stage table but below Psat (700):
+    # the MATCH(-1) anchor is step5 (P=600, two-phase). The sheet's
+    # H8/D9 would happily compute the contaminated value; the engine
+    # omits the key (ledger D-024). This is the advisory-silent
+    # plausibility band's lower half -- validate() flags it with the
+    # at/below-bubble-row advisory instead.
+    inputs = dataclasses.replace(BASE, reservoir_p=600.0)
+    r = calculate(inputs)
+    assert "res_to_psat" not in r.mean_compressibility_1e6_per_psi
+    assert "first_stage_to_psat" in r.mean_compressibility_1e6_per_psi

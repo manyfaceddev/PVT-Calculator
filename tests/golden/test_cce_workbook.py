@@ -70,7 +70,7 @@ Mean Compressibility sheet:
 
 ROUND 2 RESOLUTION (controller adjudication of the round-1 finding this
 module originally reported): CceInputs gained an optional
-`reservoir_p_psia` field (sheet D5). `_load()` below wires it from the
+`reservoir_p` field (sheet D5). `_load()` below wires it from the
 fixture, and `calc.py`'s `res_to_psat` replicates `H8`'s own
 `MATCH(D5, B:B, -1)` anchor-row selection over the stage table (smallest
 P still >= D5, landing on row 23 here) before applying the two-point
@@ -120,7 +120,7 @@ def _load() -> tuple[CceInputs, dict]:
         bubble_point_step=int(ws["D10"].value),
         stages=tuple(stages),
         rho_at_psat_g_cc=rho_at_psat,
-        reservoir_p_psia=reservoir_p,
+        reservoir_p=reservoir_p,
     )
 
     cached = {
@@ -169,7 +169,7 @@ def test_relative_volume_all_40_rows():
 def test_density_above_and_at_psat_matches_column_e():
     for idx in range(0, BUBBLE_IDX + 1):
         assert RESULTS.stages[idx].density_g_cc == pytest.approx(
-            CACHED["E"][idx], rel=1e-6
+            CACHED["E"][idx], rel=1e-9
         )
 
 
@@ -184,7 +184,7 @@ def test_instantaneous_compressibility_interior_rows_match_column_f():
     # straddles into two-phase) are excluded -- see module docstring.
     for idx in range(1, BUBBLE_IDX):
         assert RESULTS.stages[idx].inst_compressibility_1e6_per_psi == pytest.approx(
-            CACHED["F"][idx], rel=1e-6
+            CACHED["F"][idx], rel=1e-9
         )
 
 
@@ -205,7 +205,7 @@ def test_instantaneous_compressibility_none_below_psat():
 def test_y_function_below_psat_matches_column_g():
     for idx in range(BUBBLE_IDX + 1, len(RESULTS.stages)):
         assert RESULTS.stages[idx].y_function == pytest.approx(
-            CACHED["G"][idx], rel=1e-6
+            CACHED["G"][idx], rel=1e-9
         )
 
 
@@ -222,7 +222,7 @@ def test_mean_compressibility_range1_matches_sheet_d4():
     c = mean_compressibility_1e6_per_psi(
         v_i=row16.v_cell_cc, p_i=row16.p, v_f=row19.v_cell_cc, p_f=row19.p
     )
-    assert c == pytest.approx(CACHED["MC_D4"], rel=1e-6)
+    assert c == pytest.approx(CACHED["MC_D4"], rel=1e-9)
 
 
 def test_res_to_psat_matches_abs_h8_and_d9():
@@ -234,8 +234,8 @@ def test_res_to_psat_matches_abs_h8_and_d9():
     # (GOLDEN-INTEGRITY: never hand-typed from a digest). Row 23 is
     # located generically here (independently of calc.py) to prove the
     # *formula*: it's the stage whose pressure matches D5 ("Reservoir
-    # Pressure"), already read live into INPUTS.reservoir_p_psia.
-    reservoir_p = INPUTS.reservoir_p_psia
+    # Pressure"), already read live into INPUTS.reservoir_p.
+    reservoir_p = INPUTS.reservoir_p
     assert reservoir_p is not None
     reservoir_stage = next(s for s in INPUTS.stages if s.p == reservoir_p)
     bubble_stage = INPUTS.stages[BUBBLE_IDX]
@@ -246,18 +246,18 @@ def test_res_to_psat_matches_abs_h8_and_d9():
         v_f=bubble_stage.v_cell_cc,
         p_f=bubble_stage.p,
     )
-    assert c == pytest.approx(CACHED["MC_D9"], rel=1e-6)
-    assert c == pytest.approx(abs(CACHED["MC_H8"]), rel=1e-6)
+    assert c == pytest.approx(CACHED["MC_D9"], rel=1e-9)
+    assert c == pytest.approx(abs(CACHED["MC_H8"]), rel=1e-9)
 
-    # ROUND 2: the engine's own res_to_psat (reservoir_p_psia=D5, wired
+    # ROUND 2: the engine's own res_to_psat (reservoir_p=D5, wired
     # via _load()) now reproduces this exactly through calc.py's own
     # MATCH(-1)-equivalent anchor selection -- not just the raw helper
     # applied to a manually-located row.
-    assert RESULTS.mean_compressibility_1_psi["res_to_psat"] == pytest.approx(
-        CACHED["MC_D9"], rel=1e-6
+    assert RESULTS.mean_compressibility_1e6_per_psi["res_to_psat"] == pytest.approx(
+        CACHED["MC_D9"], rel=1e-9
     )
-    assert RESULTS.mean_compressibility_1_psi["res_to_psat"] == pytest.approx(
-        abs(CACHED["MC_H8"]), rel=1e-6
+    assert RESULTS.mean_compressibility_1e6_per_psi["res_to_psat"] == pytest.approx(
+        abs(CACHED["MC_H8"]), rel=1e-9
     )
 
 
@@ -272,13 +272,13 @@ def test_first_stage_to_psat_is_a_self_consistent_arithmetic_check():
     expected = mean_compressibility_1e6_per_psi(
         v_i=row16.v_cell_cc, p_i=row16.p, v_f=bubble.v_cell_cc, p_f=bubble.p
     )
-    assert RESULTS.mean_compressibility_1_psi["first_stage_to_psat"] == pytest.approx(
+    assert RESULTS.mean_compressibility_1e6_per_psi["first_stage_to_psat"] == pytest.approx(
         expected, rel=1e-9
     )
     # Sanity: distinct from the reservoir-row-anchored res_to_psat/D9/H8
     # value (read live, not hand-typed -- see CACHED["MC_D9"] above) --
     # documents that these are two legitimately different quantities,
     # not a bug in either.
-    assert RESULTS.mean_compressibility_1_psi["first_stage_to_psat"] != pytest.approx(
+    assert RESULTS.mean_compressibility_1e6_per_psi["first_stage_to_psat"] != pytest.approx(
         CACHED["MC_D9"], rel=1e-3
     )

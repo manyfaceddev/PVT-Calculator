@@ -10,7 +10,7 @@ confirmed by loading the fixture with openpyxl in both `data_only=True`
 and `data_only=False` modes (see also
 `tests/unit/experiments/test_cce_validate.py`):
 
-    D5  = Reservoir Pressure (psig)                -> CceInputs.reservoir_p_psia
+    D5  = Reservoir Pressure (psig)                -> CceInputs.reservoir_p
     D6  = Temperature (deg F)                      -> CceInputs.t_res_f
     D9  = Visual Bubble Point (psig)                -> CceInputs.psat_visual
     D10 = Bubble Point Step # (1-based row index)   -> CceInputs.bubble_point_step
@@ -48,9 +48,9 @@ and `data_only=False` modes (see also
     entered lab input from D5 = "Reservoir Pressure (psig)" = 3938.73,
     which is what `Mean Compressibility!H8` actually anchors its
     "Reservoir Pressure -> Psat" range to (via `MATCH` on the stage
-    table, landing on row 23, not row 16). CceInputs.reservoir_p_psia
+    table, landing on row 23, not row 16). CceInputs.reservoir_p
     below corresponds to D5, not D7. Flagged here for the Task 5
-    importer author: it must read BOTH D5 (reservoir_p_psia) and D9
+    importer author: it must read BOTH D5 (reservoir_p) and D9
     (psat_visual) -- the plan's D7/D8 cell list is wrong on both.
 
 Pressure policy (defect D3, see plan Global Constraints): CceStage.p is
@@ -76,11 +76,11 @@ class CceStage:
 class CceInputs:
     """Inputs for a Constant Composition Expansion test.
 
-    `reservoir_p_psia` (sheet `CCE Calculation!D5`, "Reservoir Pressure")
+    `reservoir_p` (sheet `CCE Calculation!D5`, "Reservoir Pressure")
     anchors the reservoir->Psat mean compressibility, per `Mean
     Compressibility!H8`'s MATCH on the stage table (see calc.py, Task 2
     round 2). Optional -- defaults to None, in which case calc.py's
-    `mean_compressibility_1_psi` carries no "res_to_psat" key, only the
+    `mean_compressibility_1e6_per_psi` carries no "res_to_psat" key, only the
     always-available "first_stage_to_psat" pairing.
     """
 
@@ -88,8 +88,8 @@ class CceInputs:
     psat_visual: float  # visually observed Psat (sheet D9)
     bubble_point_step: int  # user-picked step, 1-based (sheet D10)
     stages: tuple[CceStage, ...]  # descending P, 2..40 stages
-    rho_at_psat_g_cc: float | None = None  # density at Psat, if measured
-    reservoir_p_psia: float | None = None  # reservoir pressure, if tracked separately (sheet D5)
+    rho_at_psat_g_cc: float | None = None  # density at Psat, if measured; must be > 0
+    reservoir_p: float | None = None  # reservoir pressure, as-entered units (sheet D5; D3 policy)
 
 
 @dataclass(frozen=True)
@@ -122,7 +122,11 @@ class CceResults:
     psat_consistency_ok: bool  # |psat_visual - picked-row P| <= 10 psi
     v_sat_cc: float
     stages: tuple[CceStageResult, ...]
-    mean_compressibility_1_psi: dict[str, float]
-    """Keys: "first_stage_to_psat" (always present once >=2 stages sit at
-    or above Psat) and "res_to_psat" (present only when
-    CceInputs.reservoir_p_psia is set; see calc.py, Task 2 round 2)."""
+    mean_compressibility_1e6_per_psi: dict[str, float]
+    """Mean compressibilities in 1e-6/psi (x1e6 reporting scale, matching
+    the sheet's Mean Compressibility values and the per-stage
+    `inst_compressibility_1e6_per_psi` field). Keys: "first_stage_to_psat"
+    (always present once >=2 stages sit at or above Psat) and
+    "res_to_psat" (present only when CceInputs.reservoir_p is set AND its
+    MATCH(-1) anchor lands strictly above the bubble row -- see calc.py,
+    Task 2 round 2 and ledger D-024)."""

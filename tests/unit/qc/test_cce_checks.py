@@ -138,18 +138,18 @@ def test_check_single_phase_realistic_psia_range_does_not_blow_up():
 
 
 def test_check_single_phase_insufficient_points_raises():
-    with pytest.raises(InputValidationError):
+    with pytest.raises(InputValidationError, match=r"needs at least 4 points"):
         polynomial_fit.check_single_phase([(100.0, 1.0), (200.0, 1.1)], degree=3)
 
 
 def test_check_two_phase_insufficient_points_raises():
-    with pytest.raises(InputValidationError):
+    with pytest.raises(InputValidationError, match=r"needs at least 3 points"):
         polynomial_fit.check_two_phase([(100.0, 1.0)], degree=2)
 
 
 def test_check_single_phase_all_identical_pressure_raises():
     points = [(1000.0, v) for v in (1.0, 1.01, 0.99, 1.02)]
-    with pytest.raises(InputValidationError):
+    with pytest.raises(InputValidationError, match=r"all pressures are identical"):
         polynomial_fit.check_single_phase(points, degree=3)
 
 
@@ -159,13 +159,15 @@ def test_check_single_phase_too_few_distinct_pressures_raises():
     # singular -- this exercises the solver's own pivot guard, distinct
     # from the p_std==0 (all-identical) guard above.
     points = [(100.0, 1.0), (100.0, 1.5), (100.0, 1.2), (200.0, 3.0)]
-    with pytest.raises(InputValidationError):
+    # match pins the SOLVER pivot guard specifically -- not the count guard
+    # (4 points passes it) and not the p_std==0 guard (2 distinct pressures).
+    with pytest.raises(InputValidationError, match=r"degenerate/singular normal-equations"):
         polynomial_fit.check_single_phase(points, degree=3)
 
 
 def test_check_two_phase_zero_actual_value_raises():
     points = [(100.0, 0.0), (200.0, 1.0), (300.0, 2.0), (400.0, 3.0)]
-    with pytest.raises(InputValidationError):
+    with pytest.raises(InputValidationError, match=r"actual value is exactly zero"):
         polynomial_fit.check_two_phase(points, degree=2)
 
 
@@ -325,12 +327,12 @@ def test_rho_v_fail_band_hand_computed():
 
 
 def test_rho_v_insufficient_points_raises():
-    with pytest.raises(InputValidationError):
+    with pytest.raises(InputValidationError, match=r"needs at least 2 points"):
         rho_v_constancy.check([(1.0, 10.0)])
 
 
 def test_rho_v_mean_zero_raises():
-    with pytest.raises(InputValidationError):
+    with pytest.raises(InputValidationError, match=r"is zero, cannot express spread"):
         rho_v_constancy.check([(1.0, 1.0), (1.0, -1.0)])
 
 
@@ -361,7 +363,7 @@ def _load_fixture_cce_results():
         bubble_point_step=int(ws["D10"].value),
         stages=tuple(stages),
         rho_at_psat_g_cc=float(ws["J10"].value),
-        reservoir_p_psia=float(ws["D5"].value),
+        reservoir_p=float(ws["D5"].value),
     )
     return calculate(inputs)
 
