@@ -7,11 +7,12 @@ units, exceptions).
 
 Modules
 -------
+pvt.experiments.flash           Single-stage atmospheric flash volumetrics
 pvt.experiments.recombination   Separator recombination calculations
+pvt.experiments.cce             Constant Composition Expansion
 
 Planned modules
 ----------------
-pvt.experiments.cce              Constant Composition Expansion
 pvt.experiments.cvd               Constant Volume Depletion
 pvt.experiments.differential_liberation
 """

@@ -9,14 +9,13 @@ Modules
 pvt.core                 Canonical constants, units, components, composition, exceptions
 pvt.correlations         Empirical PVT correlations (Standing bubble point, etc.)
 pvt.qc                   QC engine (severity grading, threshold registry)
-pvt.experiments          Laboratory experiment modules (recombination, ...)
+pvt.experiments          Laboratory experiment modules (flash, recombination, cce)
+pvt.io                   Excel / report ingestion
+pvt.reporting            Report generation
 
 Planned modules
 ---------------
-pvt.experiments.cce      Constant Composition Expansion
 pvt.experiments.cvd      Constant Volume Depletion
-pvt.io                   Excel / report ingestion
-pvt.reporting            Report generation
 """
 
 # Flat re-exports so existing code can do `from pvt import ...`

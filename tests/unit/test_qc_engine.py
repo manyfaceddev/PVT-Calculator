@@ -3,14 +3,24 @@ from pvt.qc.engine import QCResult, Severity, ThresholdRegistry, grade, worst
 
 @pytest.mark.parametrize("value,expected", [
     (0.4, Severity.PASS), (-0.4, Severity.PASS),
+    # band edges are inclusive downward: exactly AT review_at is PASS,
+    # exactly AT fail_at is REVIEW (grade()'s documented contract)
+    (0.5, Severity.PASS), (-0.5, Severity.PASS),
     (1.0, Severity.REVIEW), (2.0, Severity.REVIEW), (2.1, Severity.FAIL),
 ])
 def test_grade_bands(value, expected):
     assert grade(value, review_at=0.5, fail_at=2.0) == expected
 
+def test_grade_zero_review_edge():
+    # review_at=0.0 (the cce_monotonic_violations default): a value of
+    # exactly 0 must PASS -- a strict `< review_at` would grade it REVIEW.
+    assert grade(0.0, review_at=0.0, fail_at=1.0) == Severity.PASS
+    assert grade(1.0, review_at=0.0, fail_at=1.0) == Severity.REVIEW
+    assert grade(1.5, review_at=0.0, fail_at=1.0) == Severity.FAIL
+
 def test_registry_defaults_and_override():
     reg = ThresholdRegistry()
-    assert len(ThresholdRegistry.DEFAULTS) == 10
+    assert len(ThresholdRegistry.DEFAULTS) == 15
     assert reg.get("mass_balance_pct") == (2.0, 3.0)
     reg.override("mass_balance_pct", 1.0, 2.0, note="tight client spec")
     assert reg.get("mass_balance_pct") == (1.0, 2.0)

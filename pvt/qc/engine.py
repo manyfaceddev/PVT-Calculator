@@ -74,7 +74,7 @@ class ThresholdRegistry:
     the caller-supplied note so the QC report can explain why a study's
     bands differ from house defaults.
 
-    "hoffman_r2" is the one exception: its (0.98, 0.95) pair is an R²-floor
+    "hoffman_r2" is one exception: its (0.98, 0.95) pair is an R²-floor
     threshold (see `pvt.qc.checks.hoffman_crump`'s module docstring for the
     review/fail semantics and the deviation conversion its check performs).
     Unlike the other entries, it is not transcribed from an ADRIC house
@@ -82,6 +82,29 @@ class ThresholdRegistry:
     crossplot visually, with no numeric R² gate of their own -- so this
     default is proposed by engineering judgment, configurable via
     `override`, pending Swej calibration.
+
+    "cce_sp_fit_dev_pct" (0.05, 0.10) and "cce_tp_fit_dev_pct" (1.0, 2.0)
+    ARE ported verbatim from a real house convention: the CCE v5 fixture's
+    own `QC Protocol!C26:C29` cells (see
+    `pvt.qc.checks.polynomial_fit`'s module docstring), not a proposal.
+
+    "cce_monotonic_violations" (0.0, 1.0 -- a violation COUNT, not a
+    percent) and "cce_rho_v_spread_pct" (0.5, 1.0) grade checks
+    RESURRECTED from CCE v1/v2 (dropped in v5's layout compaction, see
+    `docs/workbook-defect-review.md` row C5). Neither had a numeric gate
+    even when present in v1/v2 -- these bands are engineering-judgment
+    proposals, configurable via `override`, pending Swej calibration (see
+    `pvt.qc.checks.monotonic_compressibility` / `rho_v_constancy` module
+    docstrings).
+
+    "psat_breakpoint_vs_visual_psi" (10.0, 25.0) grades a NEW check (Phase
+    3a Task 4, dissected from `Bubble_Dew_Point_QC_Tool_Final.xlsx`, see
+    `pvt.qc.checks.psat_breakpoint`'s module docstring): its review edge
+    (10.0 psi) matches the existing house Psat-consistency convention
+    (`pvt.experiments.cce.validate.PSAT_CONSISTENCY_TOL_PSI`, shared by
+    `calculate`'s `psat_consistency_ok` gate); the 25.0 psi fail edge has no
+    existing house precedent and is this key's own engineering-judgment
+    proposal, pending Swej calibration.
     """
 
     DEFAULTS: dict[str, tuple[float, float]] = {
@@ -95,6 +118,11 @@ class ThresholdRegistry:
         "gor_actual_vs_target_pct": (5.0, 10.0),
         "mw_consistency_pct": (5.0, 10.0),
         "hoffman_r2": (0.98, 0.95),
+        "cce_sp_fit_dev_pct": (0.05, 0.10),
+        "cce_tp_fit_dev_pct": (1.0, 2.0),
+        "cce_monotonic_violations": (0.0, 1.0),
+        "cce_rho_v_spread_pct": (0.5, 1.0),
+        "psat_breakpoint_vs_visual_psi": (10.0, 25.0),
     }
 
     def __init__(self) -> None:
